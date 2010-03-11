@@ -2,4 +2,4 @@ import(xtable)
 import(tcltk)
 import(plyr)
 
-export(runModels, runModels_Interactive, createTable, parseModels, getSavedata_Data, getSavedata_Fileinfo)
+export(runModels, runModels_Interactive, createTable, extractModelSummaries, extractModelParameters, getSavedata_Data, getSavedata_Fileinfo)

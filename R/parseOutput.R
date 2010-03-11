@@ -1,15 +1,16 @@
-extractValue <- function(name, outfile, type="int") {
+extractValue <- function(name, textToScan, filename, type="int") {
 #extractValue(name, outfile, type="int")
 #
 #   name: the exact text to be matched in the outfile that identifies the parameter of interest
-#   outfile: the Mplus output file to be parsed. Expects this as a vector of strings from the scan command.
+#   textToScan: the chunk of Mplus output to be parsed, passed as a vector of character strings (from the scan command).
+#		filename: the name of the file containing textToScan. Used to make more intelligible warning messages.
 #   type: the data type of the parameter, which determines the regexp used. Currently can be "int", "dec", "str", or "calc".
 #
 #   Description: An internal function used by modelParams to extract parameters from the output file using regular expressions.
 #
   
   #locate the matching line in the output file
-  matchlines <- grep(name, outfile, ignore.case=TRUE, value=TRUE)
+  matchlines <- grep(name, textToScan, ignore.case=TRUE, value=TRUE)
   
   #using as.numeric for NAs to avoid mixed data types, which mess up the xtable creation
   
@@ -19,12 +20,12 @@ extractValue <- function(name, outfile, type="int") {
   }
   
   if (length(matchlines) > 1) {
-    warning(paste("More than one match found for parameter: ", name, sep=""))
+    warning(paste("More than one match found for parameter: ", name, "\n  ", filename, sep=""))
     return(matchlines)
   }
   else if (length(matchlines) == 0) {
     #if the parameter of interest not found in this file, then return NA
-    warning(paste("Parameter not found: ", name, sep=""))
+    #warning(paste("Parameter not found: ", name, "\n  ", filename, sep=""))
     return(as.numeric(NA))
   }
   
@@ -33,7 +34,7 @@ extractValue <- function(name, outfile, type="int") {
   }
   else if (type == "dec") {
     #regexpr: -*\\d+\\.\\d+ : -* optional negative sign, \\d+ match at least one digit \\. match decimal sign \\d+ match decimal digits
-    regexp <- "-*\\d+\\.\\d+" #optional negative sign in front
+    regexp <- "-*\\d+\\.\\d+"
   }
   else if (type == "str") {
     regexp <- paste(name, ".*", sep="")
@@ -47,15 +48,42 @@ extractValue <- function(name, outfile, type="int") {
     returnVal <- as.character(sub(name, "", matchlines[1], ignore.case=TRUE))    
   }
   #pull from the start of the match through match.length, which is the length of characters that matched
-  else returnVal <- as.numeric(substr(matchlines[1], start, start + attr(start, "match.length")))
+  #need to subtract one from the start + length offset to grab the correct number of characters
+  #(e.g., if the match runs from 40-44, the start will be 40, with length 5, but 40 + 5 would be 6 characters, hence -1 
+  else returnVal <- as.numeric(substr(matchlines[1], start, start + attr(start, "match.length") - 1))
   
   return(returnVal)
 }
 
-modelParams <- function(outfile, filename, extract=c("Title", "LL", "BIC", "AIC", "AICC", "Params", "Observations", "BLRT"))
+getMultilineSection <- function(header, outfile, filename) {
+  headerRow <- grep(header, outfile, perl=TRUE)
+  
+  if (length(headerRow) == 1) {
+    sectionStart <- headerRow + 1 #skip header row
+    if (outfile[sectionStart] == "") sectionStart <- sectionStart + 1 #As far as I know, there is always a blank line after the header, so skip past it
+    
+    #Sections end with the next blank line in the file
+    blankLines <- which(outfile=="")
+    sectionEnd <- blankLines[blankLines > sectionStart][1] - 1 #subtract 1 to go to line preceding blank
+    
+    sectionText <- outfile[sectionStart:sectionEnd]
+  }
+  else {
+    sectionText <- NA_character_
+    if (length(headerRow) > 1) warning(paste("Multiple matches for header: ", header, "\n  ", filename, sep=""))
+    #else if (length(headerRow) < 1) warning(paste("Could not locate section based on header: ", header, "\n  ", filename, sep=""))
+  }
+  
+  return(sectionText)
+  
+}
+
+#Chi-Square Test of Model Fit
+
+modelParams <- function(outfile, filename, extract=c("Title", "LL", "BIC", "AIC", "AICC", "Parameters", "Observations", "BLRT", "RMSEA", "CFI", "TLI", "ChiSqModel", "aBIC", "Estimator"))
 {
 #modelParams(outfile, filename)
-#   outfile: this is the output file in string form to be parsed. Passed in from parseModels.
+#   outfile: this is the output file in string form to be parsed. Passed in from extractModelSummaries.
 #   filename: name of the file being parsed. Used in case of bad model, prints a warning.
 #
 #   Description: This function parses an output file for specific model details.
@@ -76,6 +104,29 @@ modelParams <- function(outfile, filename, extract=c("Title", "LL", "BIC", "AIC"
     extract <- extract[!extract=="BLRT"]
   }
   
+  #all of these "exceptions" to the extract loop are seeming more and more kludgy
+  #maybe the default shouldn't be to run extractValue on all extract fields
+  
+  processRMSEA <- "RMSEA" %in% extract
+  if (processRMSEA) extract <- extract[!extract=="RMSEA"]
+  
+  #title processing is funky because it can span multiple lines
+  processTitle <- "Title" %in% extract
+  if (processTitle) extract <- extract[!extract=="Title"]
+  
+  #CFI/TLI are in their own section
+  processCFI <- "CFI" %in% extract
+  if (processCFI) extract <- extract[!extract=="CFI"]
+  
+  processTLI <- "TLI" %in% extract
+  if (processTLI) extract <- extract[!extract=="TLI"]
+  
+  processChiSqModel <- "ChiSqModel" %in% extract
+  if (processChiSqModel) extract <- extract[!extract=="ChiSqModel"]
+  
+  processEstimator <- "Estimator" %in% extract
+  if (processEstimator) extract <- extract[!extract=="Estimator"]
+  
   expandField <- function(name) {
     #internal function used to convert short keyword names for parameters into their full Mplus output equivalents
     #returns a vector of the exact string and the data type ("calc", "dec", "int", or "str").
@@ -85,12 +136,13 @@ modelParams <- function(outfile, filename, extract=c("Title", "LL", "BIC", "AIC"
         BIC = c("Bayesian \\(BIC\\)", "dec"),
         AIC = c("Akaike \\(AIC\\)", "dec"),
         AICC = c("AICC", "calc"),
-        Params = c("Number of Free Parameters", "int"),
+        Parameters = c("Number of Free Parameters", "int"),
         aBIC = c("Sample-Size Adjusted BIC", "dec"),
         Entropy = c("Entropy", "dec"),
         Observations = c("Number of observations", "int"),
         CFI= c("CFI", "dec"),
         TLI = c("TLI", "dec"),
+        Estimator = c("estimator", "str"),
         c(name, "calc") #return untouched if did not match
     )
     
@@ -107,7 +159,7 @@ modelParams <- function(outfile, filename, extract=c("Title", "LL", "BIC", "AIC"
   for (i in 1:length(extract)) {
     thisName <- extractDetailed[1,i]
     thisType <- extractDetailed[2,i]    
-    arglist[i] <- extractValue(name=thisName, outfile, type=thisType)
+    arglist[i] <- extractValue(name=thisName, outfile, filename, type=thisType)
   }
   
   #use the short keywords as the variable names	
@@ -115,15 +167,15 @@ modelParams <- function(outfile, filename, extract=c("Title", "LL", "BIC", "AIC"
   
   if ("LL" %in% extract) {
     if (is.na(arglist$LL)) {
-      warning(paste("Model missing LL value. Likely a failed run. Dropping from data.\n  ", filename, sep=""))
-      return(NULL)
+      warning(paste("Model missing LL value. Possibly a failed run or using a non-likelihood estimator (e.g., WLSMV).")) # Dropping from data.\n  ", filename, sep=""))
+      #return(NULL)
     }
   }
   
-  #handle AICC calculation, requires AIC, params, and observations
-  if (all(c("AICC", "AIC", "Params", "Observations") %in% extract)) {
+  #handle AICC calculation, requires AIC, Parameters, and observations
+  if (all(c("AICC", "AIC", "Parameters", "Observations") %in% extract)) {
     #calculate adjusted AIC per Burnham & Anderson(2004), which is better than AIC for non-nested model selection
-    arglist$AICC <- arglist$AIC + (2*arglist$Params*(arglist$Params+1))/(arglist$Observations-arglist$Params-1)  
+    arglist$AICC <- arglist$AIC + (2*arglist$Parameters*(arglist$Parameters+1))/(arglist$Observations-arglist$Parameters-1)  
   }
   
   if (processBLRT) {
@@ -141,40 +193,125 @@ modelParams <- function(outfile, filename, extract=c("Title", "LL", "BIC", "AIC"
       
       blrtpiece <- outfile[matchlines:endRange]
       
-      arglist$KM1LL <- extractValue(name="H0 Loglikelihood Value", blrtpiece, type="dec")
-      arglist$BLRTp <- extractValue(name="Approximate P-Value", blrtpiece, type="dec")
-      arglist$BLRTNumdraws <- extractValue(name="Successful Bootstrap Draws", blrtpiece, type="int")
+      arglist$BLRT_KM1LL <- extractValue(name="H0 Loglikelihood Value", blrtpiece, filename, type="dec")
+      arglist$BLRT_PValue <- extractValue(name="Approximate P-Value", blrtpiece, filename, type="dec")
+      arglist$BLRT_Numdraws <- extractValue(name="Successful Bootstrap Draws", blrtpiece, filename, type="int")
     }
     else {
       #warning("Could not locate BLRT section, despite being requested")
       
       #need to pad the expected fields with NAs to keep the list length consistent, permitting correct rbind
-      arglist$KM1LL <- as.numeric(NA)
-      arglist$BLRTp <- as.numeric(NA)
-      arglist$BLRTNumdraws <- as.numeric(NA)
+      arglist$BLRT_KM1LL <- as.numeric(NA)
+      arglist$BLRT_PValue <- as.numeric(NA)
+      arglist$BLRT_Numdraws <- as.numeric(NA)
+    }
+  }
+
+  if (processChiSqModel) {
+    ChiSqSection <- getMultilineSection("^\\s*Chi-Square Test of Model Fit\\s*$", outfile, filename)
+    arglist$ChiSqM_Value <- NA_real_
+    arglist$ChiSqM_DF <- NA_integer_
+    arglist$ChiSqM_PValue <- NA_real_
+
+    if (!is.na(ChiSqSection[1])) {
+      #need to use beginning of line caret to ensure that Value does not also match P-Value
+      arglist$ChiSqM_Value <- extractValue(name="^\\s*Value", ChiSqSection, filename, type="dec")
+      arglist$ChiSqM_DF <- extractValue(name="Degrees of Freedom", ChiSqSection, filename, type="int")
+      arglist$ChiSqM_PValue <- extractValue(name="^\\s*P-Value", ChiSqSection, filename, type="dec")
     }
   }
   
-  #arglist$inputInstructions <- as.character(outfile[(startInput+1):(endInput-1)])
-  arglist$inputInstructions <- paste((outfile[(startInput+1):(endInput-1)]), collapse="\n")
+  if (processCFI || processTLI) {
+    #default to missing in case section not present
+    arglist$CFI <- NA_real_
+    arglist$TLI <- NA_real_
+    
+    CFITLIsection <- getMultilineSection("^\\s*CFI/TLI", outfile, filename)
+    
+    if (!is.na(CFITLIsection[1])) {
+      if (processCFI) arglist$CFI <- extractValue(name="CFI", CFITLIsection, filename, type="dec")
+      if (processTLI) arglist$TLI <- extractValue(name="TLI", CFITLIsection, filename, type="dec")
+    }
+  }
   
+  if (processRMSEA) {
+    arglist$RMSEA_Estimate <- NA_real_
+    arglist$RMSEA_90CI_LB <- NA_real_
+    arglist$RMSEA_90CI_UB <- NA_real_
+    arglist$RMSEA_pLT05 <- NA_real_
+    
+    RMSEAsection <- getMultilineSection("RMSEA \\(Root Mean Square Error Of Approximation\\)", outfile, filename)
+
+    if (!is.na(RMSEAsection[1])) {
+      arglist$RMSEA_Estimate <- extractValue(name="Estimate", RMSEAsection, filename, type="dec")
+      arglist$RMSEA_pLT05 <- extractValue(name="Probability RMSEA <= \\.05", RMSEAsection, filename, type="dec")
+      
+      CILine <- grep("90 Percent C.I.", RMSEAsection, fixed=TRUE)      
+      if (length(CILine) > 0) {
+        
+        #form a vector of the lower and upper bounds
+        CIBounds <- strapply(RMSEAsection[CILine], "^\\s*90 Percent C\\.I\\.\\s*([-\\d\\.]+)\\s+([-\\d\\.]+)\\s*$", c, perl=TRUE)[[1]]
+        if (length(CIBounds) == 2) {
+          arglist$RMSEA_90CI_LB <- as.numeric(CIBounds[1])
+          arglist$RMSEA_90CI_UB <- as.numeric(CIBounds[2])          
+        }
+      }      
+    }
+  }
+  
+  if (processTitle) {
+    titleStart <- grep("^\\s*title:", outfile, ignore.case=TRUE, perl=TRUE)
+    if (length(titleStart) == 1) {
+      keywords <- grep("^\\s*(data:|variable:|define:|analysis:|model:|output:|savedata:|plot:|montecarlo:)", outfile, ignore.case=TRUE, perl=TRUE)
+      titleEnd <- keywords[keywords > titleStart][1] - 1 #subtract 1 to go to line preceding next keyword
+      stopifnot(titleEnd > 0)
+      
+      #if title spans multiple lines, then collapse into one string
+      title <- paste(outfile[titleStart:titleEnd], collapse=" ")
+      
+      #delete the "Title: " piece from the match       
+      title <- sub("title:\\s+", "", title, ignore.case=TRUE)
+      
+      arglist$Title <- title
+    }
+    else {
+      warning("Unable to locate title field. Returning missing")
+      arglist$Title <- NA_character_
+    }
+  }
+  
+  if (processEstimator) {
+    #the estimator is often defined in the input instructions, but we want the summary of the analysis section
+    summaryStart <- grep("^\\s*SUMMARY OF ANALYSIS", outfile, ignore.case=TRUE, perl=TRUE)
+    if (length(summaryStart) == 1) {
+      bottomPortion <- outfile[summaryStart:length(outfile)]
+      arglist$Estimator <- extractValue(name="^\\s*Estimator\\s*", bottomPortion, filename, type="str")
+    }
+  }
+  
+  #arglist$InputInstructions <- as.character(outfile[(startInput+1):(endInput-1)])
+  arglist$InputInstructions <- paste((outfile[(startInput+1):(endInput-1)]), collapse="\n")
+  arglist$Filename <- filename
+      
   return(as.data.frame(arglist, stringsAsFactors=FALSE))
 } 
 
-parseModels <- function(directory=getwd(), recursive=FALSE, filefilter) {
-#parseModels(directory, recursive=FALSE)
+extractModelSummaries <- function(target=getwd(), recursive=FALSE, filefilter) {
+#TODO: Allow target to be a directory or a single file
+#extractModelSummaries(target, recursive=FALSE)
 #
-#   directory: the directory containing Mplus output files to read. Use forward slashes in directory name (e.g., "C:/Users/Mplus/"). Defaults to working directory.
+#   target: the directory containing Mplus output files to read. Use forward slashes in directory name (e.g., "C:/Users/Mplus/"). Defaults to working directory.
 #   recursive: specifies whether to parse output files in subdirectories beneath the specified directory. Defaults to FALSE. (TRUE or FALSE)
 #
 #   Description: This function identifies all Mplus .out files in the specified directory (directory parameter)
 #   and reads basic model fit information from each file. The function combines fit details across models into a list.
 #
-#   Example: myModels <- parseModels("C:/Documents and Settings/Michael/My Documents/Mplus Stuff/", recursive=TRUE)
+#   Example: myModels <- extractModelSummaries("C:/Documents and Settings/Michael/My Documents/Mplus Stuff/", recursive=TRUE)
   
   #retain working directory and reset at end of run
+  
   curdir <- getwd()
-  setwd(directory)
+  setwd(target)
   
   #obtain list of all files in the specified directory
   filelist <- list.files(recursive=recursive)
@@ -201,7 +338,13 @@ parseModels <- function(directory=getwd(), recursive=FALSE, filefilter) {
   #rbind creates an array of lists by appending each modelParams retun value
   for (i in 1:length(outfiles)) {
     #read the file
-    readfile <- scan(outfiles[i], what="character", sep="\n", strip.white=TRUE)
+    readfile <- scan(outfiles[i], what="character", sep="\n", strip.white=TRUE, blank.lines.skip=FALSE)
+    
+    #bomb out for EFA files
+    if (length(grep("TYPE\\s+(IS|=|ARE)\\s+((MIXTURE|TWOLEVEL)\\s+)*EFA\\s+\\d+", readfile, ignore.case=TRUE, perl=TRUE)) > 0) {
+      warning(paste("EFA, MIXTURE EFA, and TWOLEVEL EFA files are not currently supported by extractModelSummaries.\n  Skipping outfile: ", outfiles[i], sep=""))
+      next #skip file
+    }
     
     #append params for this file to the details array
     #note that this is a memory-inefficient solution because of repeated copying. Better to pre-allocate.
@@ -295,16 +438,16 @@ getSavedata_Fileinfo <- function(outfile) {
 }
 
 createTable <- function(modelList, filename=file.path(getwd(), "Model Comparison.html"),
-  sortby="AICC", display=TRUE, latex=FALSE, dropCols=c("inputInstructions", "Observations"), label=NULL) {
+  sortby="AICC", display=TRUE, latex=FALSE, dropCols=c("InputInstructions", "Observations"), label=NULL) {
 #createTable(directory, recursive=FALSE)
 #
-#   modelList: list of model details returned by parseModels.
+#   modelList: list of model details returned by extractModelSummaries.
 #   basedir: directory in which to save the HTML table. Defaults to current directory.
 #   filename: name of HTML table file. Defaults to model comparison.html
 #   sortby: name of field on which to sort. Defaults to "AICC". "BIC" and "AIC" are options.
 #   display: whether to load the HTML table in the browser after creating it. Defaults to TRUE. (TRUE/FALSE) 
 #
-#   Description: This function generates an HTML table from a list of models generated by parseModels.
+#   Description: This function generates an HTML table from a list of models generated by extractModelSummaries.
 #
 #   Example: createTable(myModels, "C:/Documents and Settings/Michael/My Documents/Mplus Stuff/", "my comparison.html", sortby="BIC")
   
@@ -360,7 +503,7 @@ createTable <- function(modelList, filename=file.path(getwd(), "Model Comparison
   
 }
 
-extractModelResults <- function(outfile, resultType="raw") {
+extractModelParameters <- function(outfile, resultType="raw") {
   require(gsubfn)
   require(plyr)
   readfile <- scan(outfile, what="character", sep="\n", strip.white=TRUE, blank.lines.skip=FALSE)

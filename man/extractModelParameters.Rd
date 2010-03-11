@@ -1,6 +1,6 @@
-\name{extractModelResults}
+\name{extractModelParameters}
 \Rdversion{1.1}
-\alias{extractModelResults}
+\alias{extractModelParameters}
 \title{Extract Model Parameters from MODEL RESULTS section.}
 \description{
 Extracts the model parameters from the MODEL RESULTS section of a given Mplus output file.
@@ -8,7 +8,7 @@ Parameters include the parameter estimate, std. err, param/s.e., and two-tailed 
 Model results are returned as a \code{data.frame} object. 
 }
 \usage{
-extractModelResults(outfile, resultType="raw")
+extractModelParameters(outfile, resultType="raw")
 }
 
 \arguments{
@@ -33,6 +33,6 @@ will be included as \code{LatentClass} "CatVars."
 }
 \author{Michael Hallquist}
 \seealso{
-\code{\link{parseModels}}
+\code{\link{extractModelSummaries}}
 }
 \keyword{interface}

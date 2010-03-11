@@ -9,8 +9,9 @@ including the directory for runs, recursing through subdirectories, displaying o
 and replacing existing outfiles.  
 }
 \usage{
-runModels_Interactive(directory = getwd(), recursive = "0", showOutput = "1",
-	replaceOutfile = "1", checkDate = "0", logFile="1")
+runModels_Interactive(directory = getwd(), recursive = "0", 
+	showOutput = "1", replaceOutfile = "1", checkDate = "0",
+	logFile="1")
 }
 
 \arguments{
