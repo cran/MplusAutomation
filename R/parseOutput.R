@@ -437,6 +437,90 @@ getSavedata_Fileinfo <- function(outfile) {
   
 }
 
+#a helper function to be used by wrappers that generate HTML, LaTex, and on-screen displays of summary statistics
+subsetModelList <- function(modelList, keepCols, dropCols, sortBy) {
+  #if did not pass either drop or keep, setup useful defaults
+  if (missing(keepCols) && missing(dropCols)) keepCols <- c("Title", "LL", "Parameters", "AIC", "AICC", "BIC", "RMSEA_Estimate")
+  
+  if (missing(sortBy)) sortBy <- "AICC"
+  
+  #only allow keep OR drop.
+  if(!missing(keepCols) && !missing(dropCols)) stop("keepCols and dropCols passed to subsetModelList. You must choose one or the other, but not both.")
+  
+  #keep only columns specified by keepCols
+  if (length(keepCols) > 0) {
+    MplusData <- modelList[, keepCols]
+  }
+  
+  #drop columns specified by dropCols
+  if (!missing(dropCols) && length(dropCols) > 0) {
+    MplusData <- modelList
+    #Process vector of columns to drop
+    for (column in dropCols) {
+      MplusData[[column]] <- NULL
+    }
+    
+  }
+  
+  #make a list of non-missing columns
+  notMissing <- unlist(lapply(names(MplusData), function(column) {
+            if(!all(is.na(MplusData[[column]]))) return(column)
+          }))
+  
+  #sort data set correctly and drop columns where all models are missing
+  MplusData <- MplusData[order(MplusData[[sortBy]]), notMissing]
+  
+  return(MplusData)
+}
+
+#display summary table in a separate window
+showSummaryTable <- function(modelList, keepCols, dropCols, sortBy) {
+  require(relimp)
+
+  MplusData <- subsetModelList(modelList, keepCols, dropCols, sortBy)
+  showData(MplusData, font="Courier 9", placement="+30+30", maxwidth=150, maxheight=50, rownumbers=FALSE, title="Mplus Summary Table")
+}
+
+#create HTML table
+HTMLSummaryTable <- function(modelList, filename=file.path(getwd(), "Model Comparison.html"), keepCols, dropCols, sortBy, display=FALSE) {
+  require(xtable)
+  #create HTML table and write to file.
+  
+  #ensure that the filename has a .html or .htm at the end
+  if (!length(grep(".*\\.htm[l]*", filename)) > 0) {
+    filename <- paste(filename, ".html", sep="")
+  }                                      
+  
+  if (length(grep("[\\/]", filename)) == 0) {
+    #Filename does not contain a path. Therefore, add the working directory
+    filename <- file.path(getwd(), filename)
+  }
+  
+  MplusData <- subsetModelList(modelList, keepCols, dropCols, sortBy)
+  
+  print(x=xtable(MplusData),
+        type="html",
+        file=filename,
+        include.rownames = FALSE,
+        NA.string = "."
+  )
+    
+  if (display) {
+    #load table in browser
+    shell.exec(paste("file:///", filename, sep=""))
+  }
+ 
+}
+
+LatexSummaryTable <- function(modelList, keepCols, dropCols, sortBy, label=NULL, caption=NULL) {
+  #return latex table to caller
+  require(xtable)
+  
+  MplusData <- subsetModelList(modelList, keepCols, dropCols, sortBy)
+
+  return(xtable(MplusData, label=label, caption=caption))
+}
+
 createTable <- function(modelList, filename=file.path(getwd(), "Model Comparison.html"),
   sortby="AICC", display=TRUE, latex=FALSE, dropCols=c("InputInstructions", "Observations"), label=NULL) {
 #createTable(directory, recursive=FALSE)

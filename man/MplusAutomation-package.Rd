@@ -14,8 +14,8 @@ The MplusAutomation package leverages the flexibility of the
 \tabular{ll}{
 Package: \tab MplusAutomation\cr
 Type: \tab Package\cr
-Version: \tab 0.2-2\cr
-Date: \tab 2010-03-11\cr
+Version: \tab 0.2-3\cr
+Date: \tab 2010-03-12\cr
 License: \tab LGPL-3\cr
 LazyLoad: \tab yes\cr
 }
@@ -33,7 +33,9 @@ At this time, the first two items are included in the package, with a prototype 
 The core routine for running batches of models is \code{\link{runModels}}, with an easy-to-use GUI wrapper, \code{\link{runModels_Interactive}}.
 
 To extract model summary statistics from one or more output files, see \code{\link{extractModelSummaries}}, which returns a \code{data.frame} of fit statistics
-for models located within a directory. Model fit results can be summarized in tabular form (for comparing among models) using \code{\link{createTable}}.
+for models located within a directory. Model fit results can be summarized in tabular form (for comparing among models) using \code{\link{showSummaryTable}}
+(displays table in separate window), \code{\link{HTMLSummaryTable}} (creates HTML file containing summary table), or \code{\link{LatexSummaryTable}} (returns
+a LaTex-formatted table of summary statistics).
 
 To extract raw data created by the SAVEDATA command (e.g., class membership probabilities or factor scores), see \code{\link{getSavedata_Data}}.
 

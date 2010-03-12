@@ -1,5 +1,8 @@
 import(xtable)
 import(tcltk)
 import(plyr)
+import(relimp)
 
-export(runModels, runModels_Interactive, createTable, extractModelSummaries, extractModelParameters, getSavedata_Data, getSavedata_Fileinfo)
+export(runModels, runModels_Interactive, createTable, extractModelSummaries, 
+	extractModelParameters, getSavedata_Data, getSavedata_Fileinfo,
+	showSummaryTable, LatexSummaryTable, HTMLSummaryTable)
