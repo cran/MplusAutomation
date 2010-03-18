@@ -1,0 +1,19 @@
+Version 0.2-4
+
+- Added package vignette (in the inst/doc directory).
+- Included NEWS file
+- Added flush commands to log file writing in runModels to allow for progress tracking.
+
+Version 0.2-3
+
+- Separated table-creating functions (previously createTable) into three related routines:
+  showSummaryTable, HTMLSummaryTable, and LatexSummaryTable. createTable will be removed in future
+  versions of the package.
+
+Version 0.2-2
+
+- Improved extractModelSummaries function to allow for summary statistics located across multiple lines.
+  New summaries include model chi-square, RMSEA, CFI, and TLI.
+  
+- Corrected a bug in extractValue that did not select the correctly utilize match.length from regexpr
+  (failure to subtract 1 in substr).  

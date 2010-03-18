@@ -217,6 +217,8 @@ runModels <- function(directory=getwd(), recursive=FALSE, showOutput=FALSE, repl
             paste("\tReplace existing outfile:", replaceOutfile),
             "------"
         ), con=logTarget)
+    #need to flush after each writeLines to keep the text file current.
+    flush(logTarget)
   }
   
   isLogOpen <- function() {
@@ -230,7 +232,10 @@ runModels <- function(directory=getwd(), recursive=FALSE, showOutput=FALSE, repl
   exitRun <- function() {
     require(plyr)
     
-    if(isLogOpen()) writeLines("Run terminated abnormally", logTarget)
+    if(isLogOpen()) {
+      writeLines("Run terminated abnormally", logTarget)
+      flush(logTarget)
+    }
     
     #create a data frame consisting of the process names and pids
     #uses str split on the output of wmic to extract name and pid columns
@@ -240,7 +245,10 @@ runModels <- function(directory=getwd(), recursive=FALSE, showOutput=FALSE, repl
     })
 
     if(length(grep("mplus.exe", processList$procname, ignore.case=TRUE)) > 0) {
-      if(isLogOpen()) writeLines("Killing wayward Mplus processes", logTarget)
+      if(isLogOpen()) {
+        writeLines("Killing wayward Mplus processes", logTarget)
+        flush(logTarget)
+      }
       shell("taskkill /f /im mplus.exe")
 
       #if the process is currently running and we kill it, then the output and gph files will be incomplete.
@@ -251,11 +259,17 @@ runModels <- function(directory=getwd(), recursive=FALSE, showOutput=FALSE, repl
         gphDelete <- paste(noExtension, ".gph", sep="")
         if (file.exists(outDelete)) {
           unlink(outDelete)
-          if(isLogOpen()) writeLines(paste("Deleting unfinished output file:", outDelete), logTarget)
+          if(isLogOpen()) {
+            writeLines(paste("Deleting unfinished output file:", outDelete), logTarget)
+            flush(logTarget)
+          }
         }
         if (file.exists(gphDelete)) {
           unlink(gphDelete)  
-          if(isLogOpen()) writeLines(paste("Deleting unfinished graph file:", gphDelete), logTarget)
+          if(isLogOpen()) {
+            writeLines(paste("Deleting unfinished graph file:", gphDelete), logTarget)
+            flush(logTarget)
+          }
         }        
       }      
     }
@@ -302,12 +316,18 @@ runModels <- function(directory=getwd(), recursive=FALSE, showOutput=FALSE, repl
           outmtime <- file.info(outfiles[matchPos[1]])$mtime
           
           if (inpmtime <= outmtime) {
-            if (isLogOpen()) writeLines(paste("Skipping model because output file is newer than input file:", inpfiles[i]), logTarget)
+            if (isLogOpen()) {
+              writeLines(paste("Skipping model because output file is newer than input file:", inpfiles[i]), logTarget)
+              flush(logTarget)
+            }
             next
           }
         }  
         else if (replaceOutfile == "never"){       
-          if (isLogOpen()) writeLines(paste("Skipping model because output file already exists:", inpfiles[i]), logTarget)
+          if (isLogOpen()) {
+            writeLines(paste("Skipping model because output file already exists:", inpfiles[i]), logTarget)
+            flush(logTarget)
+          }
           next
         }
       }
@@ -331,7 +351,10 @@ runModels <- function(directory=getwd(), recursive=FALSE, showOutput=FALSE, repl
       #chartr remaps forward slashes to backslashes
       command <- chartr("/", "\\", command)
     }
-    if (isLogOpen()) writeLines(paste("Currently running model:", inputSplit$filename), logTarget)
+    if (isLogOpen()) {
+      writeLines(paste("Currently running model:", inputSplit$filename), logTarget)
+      flush(logTarget)
+    }
     
     #code swiped from shell because shell didn't support suppressing output
     shellcommand <- Sys.getenv("COMSPEC")
@@ -351,6 +374,8 @@ runModels <- function(directory=getwd(), recursive=FALSE, showOutput=FALSE, repl
   #close log file
   if (isLogOpen()) {
     writeLines(c("", paste("------End Mplus Model Run: ", format(Sys.time(), "%d%b%Y %H:%M:%S"), "------", sep="")), logTarget)
+    flush(logTarget)
+    #maybe move this into the exit routine?? exit always runs.
     close(logTarget)
   }
 }

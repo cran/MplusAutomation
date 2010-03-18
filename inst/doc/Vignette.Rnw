@@ -1,0 +1,346 @@
+% 
+\documentclass{article}
+\usepackage{geometry}
+\geometry{letterpaper, margin=0.5in}
+\usepackage[OT1]{fontenc}
+\usepackage{Sweave}
+\usepackage[colorlinks,urlcolor=blue]{hyperref} 
+\usepackage{float}
+\usepackage{alltt}
+\usepackage{listings}
+\lstset{
+language=R,                			% choose the language of the code
+basicstyle=\verbatim@font,      % the size of the fonts that are used for the code
+breaklines=true,                % sets automatic line breaking
+breakatwhitespace=true,					%force breaks at white space
+showspaces=false,								%don't display funky characters where there are spaces
+showstringspaces=false,					%show spaces within strings
+columns=fullflexible						%makes character spacing nice
+}
+%\VignetteIndexEntry{MplusAutomation Examples}
+
+\begin{document}
+\setlength{\parindent}{0cm}
+\setlength{\parskip}{0.3cm}
+\title{MplusAutomation Examples}
+\author{Michael N. Hallquist}
+\date{Package version 0.2-4}
+\maketitle
+\tableofcontents
+\bigskip
+%Note that I need to set the directory before building this file, but shouldn't set it using setwd
+%because then CRAN maintainers can't link to the same directory.
+%setwd("C:/Data_Analysis/Mplus_Automation/pkg/inst/doc")
+
+This guide tries to make few assumptions about the user's familiarity with the
+R environment, as many Mplus user's may be unfamiliar with R.
+
+Note: all examples herein rely on examples from the Mplus User's Guide. The input
+and output files for these examples are assumed to reside in the directory:
+\lstinline[breakatwhitespace=false]|C:\Program Files (x86)\Mplus\Mplus Examples\User's Guide Examples|. If you 
+have installed Mplus to a different location, please use the correct directory in
+the code below.
+
+\section{Installing and loading the package}
+
+The package was built using R 2.10.1, although it should be compatible with
+older versions of R. To obtain R 2.10.1 for Windows, follow this link:
+\url{http://cran.r-project.org/bin/windows/base/R-2.10.1-win32.exe}
+
+After installing the program and launching R, type the following at the command
+line:
+
+\lstinline|> install.packages("MplusAutomation", .Library)|
+
+Depending on which version of Windows you're using, you may need to run R
+as an administrator (right-click, Run as administrator).
+
+To load the MplusAutomation package so that its functions are available for your use,
+type:
+
+\lstinline|library(MplusAutomation)|
+
+\section{Running batches of Mplus models}
+A major purpose of the MplusAutomation package is to allow for easy runs of
+batches/groups of Mplus models. Oftentimes, one wants to compare a group of
+related models, such as testing for different forms of measurement invariance.
+Depending on the complexity of the models, Mplus can take several minutes to many
+hours to run each model. The \lstinline|runModels| routine is designed to run a group
+of related models located within a directory (or nested subdirectories).
+
+\subsection{Basic use of runModels}
+
+As an example, say that we want to run all of the models used in the Mplus 5.1
+Addendum: \url{http://statmodel.com/download/examples1.pdf}. The input files for these
+are located in: \lstinline[breakatwhitespace=false]|C:\Program Files (x86)\Mplus\Mplus Examples\Addendum Examples|.
+
+To run this batch, enter this at the command line:
+
+\lstinline|> runModels("C:/Program Files (x86)/Mplus/Mplus Examples/Addendum Examples")|
+
+Note that you need to use forward slashes ("/"), not backslashes("\textbackslash")
+in the path name. Alternatively, you could use double backslashes (e.g., \lstinline|"C:\\Program Files (x86)"| etc.).
+
+\subsection{Advanced use of runModels}
+\subsubsection{Recursing through subdirectories}
+
+Sometimes it is useful to organize models into one or more subdirectories where each
+subdirectory contains models for a particular outcome or analytic approach. For example,
+if one were contrasting latent class analysis (LCA) with confirmatory factor analysis (CFA), one could
+place all LCA models in a single directory and place CFA models in a different directory. 
+This might yield a file structure like this:
+
+\begin{lstlisting}
+ComparingLCAvCFA/LCA/1-class LCA.inp
+ComparingLCAvCFA/LCA/2-class LCA.inp  
+ComparingLCAvCFA/LCA/3-class LCA.inp
+
+ComparingLCAvCFA/CFA/1-factor CFA.inp
+ComparingLCAvCFA/CFA/2-factor CFA.inp
+ComparingLCAvCFA/CFA/3-factor CFA.inp
+\end{lstlisting}
+
+In this case, all Mplus files for the larger project are housed within a parent directory,
+\lstinline|ComparingLCAvCFA|. To run all models within \lstinline|ComparingLCAvCFA|, including
+models within any subdirectories (including \lstinline|LCA| and \lstinline|CFA|), use the \lstinline|recursive|
+parameter of \lstinline|runModels|.
+
+\lstinline|> runModels("C:/Data_Analysis/ComparingLCAvCFA", recursive=TRUE)|
+
+\subsubsection{Logging the outcome of runModels}
+
+The \lstinline|logFile| parameter of \lstinline|runModels| allows the user to specify a text file containing the results
+of \lstinline|runModels|. Included in the log file are the parameters passed to the function, the date when the batch
+started, which models were run (and which were skipped), and any actions taken if the R process was interrupted
+(e.g., terminating the Mplus process). By default, \lstinline|runModels| will create a log file in the same directory
+as the models to be run, \lstinline|directory|, called \lstinline|Mplus Run Models.log|. To change the name or location of this
+file, specify the \lstinline|logFile| parameter, such as in this example:
+
+\lstinline|> runModels("C:/Data_Analysis/ComparingLCAvCFA", recursive=TRUE, logFile="C:/CFALCA-Comparison-Log.txt")|
+
+Here, the file \lstinline|C:/CFALCA-Comparison-Log.txt| will be created in the directory \lstinline|C:/|.
+
+To specify that no log file should be created, pass \lstinline|logFile=NULL| to \lstinline|runModels|.
+
+\lstinline|> runModels("C:/Data_Analysis/ComparingLCAvCFA", recursive=TRUE, logFile=NULL)|
+
+\subsubsection{Skipping models with existing output files}
+Sometimes it is useful to skip models that have already been run to avoid the computing time associated with
+running all input files within a directory. The \lstinline|replaceOutfile| parameter allows one to specify
+which models should be re-run, where models that have an output with the same filename as the input file are considered
+to have been run. By default, \lstinline|replaceOutfile="always"|, meaning that all input files will be run,
+regardless of whether they have a matching output file.
+
+To skip any model that already has an existing output file, pass \lstinline|replaceOutfile="never"| to \lstinline|runModels|,
+such as in this example:
+
+\lstinline|> runModels("C:/Data_Analysis/ComparingLCAvCFA", recursive=TRUE, replaceOutfile="never")|
+
+Oftentimes, after a model or group of models has been run, it is necessary to modify some aspects of the
+parameterization to improve model fit or address estimation problems. In such cases, output files are inspected
+and the corresponding input files are modified. In such cases, one may only want to run models that have been
+updated, but not to re-run models that completed successfully. This can be accomplished by passing 
+\lstinline|replaceOutfile="modifiedDate"| to \lstinline|runModels|. The \lstinline|"modifiedDate"| determines whether there is
+an existing output file for a given input file. If there is, it checks to see whether the date the input file
+was modified is \textit{newer} than the output file. If the input file is newer, then the model is run. Otherwise,
+it is skipped. Here is an example:
+
+\lstinline|> runModels("C:/Data_Analysis/ComparingLCAvCFA", recursive=TRUE, replaceOutfile="modifiedDate")|
+
+\subsubsection{Displaying R output in the console}
+When models are run by the Mplus Windows program (MplusWin.exe), a separate DOS window appears that documents
+the TECH8 progress of the model, which represents the progress toward maximum-likelihood convergence for the model
+(including random starts and final stage optimizations for some models). To display the same TECH8 output
+for models run by \lstinline|runModels|, pass \lstinline|showOutput=TRUE| to the \lstinline|runModels| function.
+
+\lstinline|> runModels("C:/Data_Analysis/ComparingLCAvCFA", recursive=TRUE, showOutput=TRUE)|
+
+If the R session was started through the R GUI (Rgui.exe), the output will be displayed within the R window.
+If the R session was started using Rterm (the R terminal), a separate DOS window will display the output, as occurs
+using the built-in Mplus Windows program.
+
+By default, the output is not shown, \lstinline|showOutput=FALSE|.
+
+\section{User-friendly interface to runModels}
+A wrapper function, \lstinline|runModels_Interactive|, is included in the \lstinline|MplusAutomation| package, which provides
+a simple dialog box for specifying which models to run. To start the interface, type the following:
+
+\lstinline|> runModels_Interactive()|
+
+The picture below documents the appearance of this interface:
+
+\begin{figure}[H]
+\begin{center}
+\includegraphics{runModels_Interactive-Screenshot.png}
+\end{center}
+\end{figure}
+
+Although one can provide parameters to the function to set the initial states of the interface, it is rarely necessary
+to do so, so the syntax above should suffice.
+
+\section{Extracting model summary statistics}
+Another major purpose of the package is to allow for easy extraction of model
+summary statistics from a group of models. Such summary statistics include items such as
+log-likelihood values, root mean squared error of approximation (RMSEA), and Akaike's Information
+(AIC).
+
+The \lstinline|extractModelSummaries| function is designed to extract model summaries from a group of models
+located within a directory (or nested within subdirectories). This function returns a \lstinline|data.frame|
+containing one row per model, with columns representing several fit statistics.
+
+A basic call to the function includes the directory containing output files to be parsed:
+
+\lstinline|> mySummaries <- extractModelSummaries("C:/Data_Analysis/ComparingLCAvCFA", recursive=TRUE)|
+
+Now, the variable mySummaries is a \lstinline|data.frame| containing summary statistics about models
+contained in the \linebreak[4] \lstinline|ComparingLCAvCFA| directory.
+
+As with \lstinline|runModels|, \lstinline|extractModelSummaries| includes a \lstinline|recursive| parameter
+that specifies whether to parse output files located in subdirectories beneath the target directory
+(defaults to \lstinline|FALSE|).
+
+In addition, \lstinline|extractModelSummaries| also includes a parameter, \lstinline|filefilter|, that allows
+the user to parse only files matching certain search criteria. \lstinline|filefilter| accepts a Perl-compatible
+regular expression string. If you're unfamiliar with regular expressions in Perl, I suggest these two websites:
+
+\url{http://www.pcre.org/pcre.txt}
+
+\url{http://www.regular-expressions.info/}
+
+Note that many regular expression in Perl rely on backslashes (\textbackslash) for
+defining character classes, escaping certain characters, and so on. In R, backslashes contained
+in strings must be doubled (i.e., \textbackslash\textbackslash).
+
+Here is an example of filtering only files that match "ex4" followed by any characters
+Note that the function automatically searches only files with the .out extension, so it isn't
+necessary to include .out in the file filter. 
+
+\begin{lstlisting}
+summaryStats <- extractModelSummaries("C:/Program Files (x86)/Mplus/Mplus Examples/User's Guide Examples/Outputs", filefilter="ex4.*")
+\end{lstlisting}
+
+Here is a more complex filter that matches filenames that begin with the digits 1, 2, or 3 
+(for 1-class, 2-class, or 3-class output files) and also contain the text "Threshold":
+
+
+\begin{lstlisting}
+summaryStats <- extractModelSummaries("C:/Data_Analysis/Multiclass Models", filefilter="[123]{1}-class.*Threshold.*")
+\end{lstlisting}
+
+\subsection{Listing of summary statistics extracted by extractModelSummaries}
+As of this version of the package (0.2-4), the following summary statistics are automatically extracted,
+when available:
+
+\begin{itemize}
+  \setlength{\itemsep}{1pt}
+  \setlength{\parskip}{0pt}
+  \setlength{\parsep}{0pt}
+	\item \lstinline|Title|: Title for the model, specified by the TITLE: command
+	\item \lstinline|Filename|: Filename of the output file
+	\item \lstinline|InputInstructions|: A string containing the full input syntax for the model
+	\item \lstinline|Estimator|: Estimator used for the model (e.g., ML, MLR, WLSMV, etc.)
+	\item \lstinline|LL|: Log-likelihood of the model
+	\item \lstinline|BIC|: Bayesian Information Criterion
+	\item \lstinline|aBIC|: Sample-Size-Adjusted BIC (Sclove, 1987)
+	\item \lstinline|AIC|: Akaike's Information Criterion
+	\item \lstinline|AICC|: Corrected AIC, based on Sugiura (1978) and recommended by Burnham \& Anderson (2002)
+	\item \lstinline|Parameters|: Number of parameters estimated by the model
+	\item \lstinline|Observations|: The number of observations for the model (does not suppport multiple-groups analysis at this time)
+	\item \lstinline|CFI|: Confirmatory Fit Index
+	\item \lstinline|TLI|: Tucker-Lewis Index
+	\item \lstinline|RMSEA_Estimate|: Point estimate of root mean squared error of approximation
+	\item \lstinline|RMSEA_90CI_LB|: Lower bound of the 90\% Confidence Interval around the RMSEA estimate
+	\item \lstinline|RMSEA_90CI_UB|: Upper bound of the 90\% Confidence Interval around the RMSEA estimate
+	\item \lstinline|RMSEA_pLT05|: Probability that the RMSEA estimate falls below .05, indicating good fit
+	\item \lstinline|ChiSqM_Value|: Model chi-squared value
+	\item \lstinline|ChiSqM_DF|: Model chi-squared degrees of freedom
+	\item \lstinline|ChiSqM_PValue|: Model chi-squared p value
+	\item \lstinline|BLRT_KM1LL|: Log-likelihood of the K-1 model (one less class) for the Bootstrapped Likelihood Ratio Test (TECH14)
+	\item \lstinline|BLRT_PValue|: P-value of the Bootstrapped Likelihood Ratio Test (TECH14) testing whether the K class model is significantly better than K-1
+	\item \lstinline|BLRT_Numdraws|: The number of bootstrapped samples used in the Bootstrapped Likelihood Ratio Test
+\end{itemize}
+
+
+The \lstinline|extractModelSummaries| function is designed to work in conjunction with functions that generate
+tables of summary statistics.
+
+\section{Summarizing model fit statistics in tabular form}
+
+Once summary statistics for a group of models have been extracted, it is often useful
+to display them in tabular form to compare fit among models, sorted by a particular
+criterion (e.g., AIC).
+
+The \lstinline|MplusAutomation| package provides three routines for tabulating model summary
+statistics. At this time, there are three table-generating functions, which are detailed below:
+\lstinline|showSummaryTable|, \lstinline|HTMLSummaryTable|, \lstinline|LatexSummaryTable|.
+
+As their names suggest, these functions can create tables for on-screen display
+(\lstinline|showSummaryTable|), as an HTML file containing the table (\lstinline|HTMLSummaryTable|),
+or as a LaTex-formatted table (\lstinline|LatexSummaryTable|).
+
+\subsection{Displaying the summary table on the screen}
+The \lstinline|showSummaryTable| function is designed to display a summary table of model fit statistics on the screen.
+The function expects a model list created by \lstinline|extractModelSummaries| and allows the user to specify which
+columns should be included in the table.
+
+Here is a simple example of using \lstinline|showSummaryTable| by specifying which columns to keep in the table:
+
+\begin{lstlisting}
+showSummaryTable(summaryStats, keepCols=c("Title", "LL", "AIC", "BIC", "CFI"), sortBy="AIC")
+\end{lstlisting}
+
+And another example specifying that all columns in the model list should be displayed \textit{except} those
+specified:
+
+\begin{lstlisting}
+showSummaryTable(summaryStats, dropCols=c("InputInstructions", "Observations", "Parameters"), sortBy="CFI")
+\end{lstlisting}
+ 
+\subsection{Creating a summary table in HTML}
+The \lstinline|HTMLSummaryTable| function creates an HTML file containing a summary table of model fit statistics.
+Its syntax is very similar to \lstinline|showSummaryTable|, including parameters such as dropCols, keepCols, and sortBy.
+Two parameters distinguish it from other summary functions: \lstinline|filename| and \lstinline|display|.
+
+The \lstinline|filename| parameter specifies the path and filename of the HTML file to be created. \lstinline|display|
+specifies whether to display the HTML summary table in the web browser after it is created. Here is a simple
+of using the function:
+
+\begin{lstlisting}
+HTMLSummaryTable(summaryStats, filename="C:/MyModelSummary.html", display=TRUE, keepCols=c("Title", "LL", "AIC", "BIC", "AICC"), sortBy="AIC")
+\end{lstlisting}
+  
+\subsection{Creating a summary table in LaTex}
+
+One major strength of R is its ability to be interwoven with LaTex, an advanced typesetting language. The most
+frequently used approach for combining R and LaTex is Sweave (\url{http://www.stat.uni-muenchen.de/~leisch/Sweave/}),
+a built-in R function that runs R code embedded in a LaTex document, thereby permitting the creation of
+advanced automated reports.
+
+Mplus model fit summary tables can be formatted in LaTex using the \lstinline|LatexSummaryTable| function. Unlike
+\lstinline|showSummaryTable| and \lstinline|HTMLSummaryTable|, \lstinline|LatexSummaryTable| returns a value, specifically the
+LaTex syntax for the summary table. Here is a simple example of the function
+
+\begin{lstlisting}
+myLatexTable <- LatexSummaryTable(summaryStats, keepCols=c("Title", "BIC", "Parameters"), sortBy="Parameters",
+	caption="Comparing CFA vs. LCA according to number of parameters", label="CFALCATab")
+\end{lstlisting}
+
+Note that \lstinline|LatexSummaryTable| supports two distinct parameters relative to other summary table functions:
+\lstinline|caption| and \lstinline|label|. These allow the user to set the caption and label properties of the table,
+which are used in LaTex for displaying a caption with the table and for allowing the table to be easily referenced 
+in other parts of document, respectively. See \url{http://en.wikibooks.org/wiki/LaTeX/Tables#The_table_environment_-_captioning_etc}
+for further details about LaTex tables.
+
+The LaTex syntax for a summary table could be included in an Sweave document in the following way:
+
+\lstinline|<<echo=TRUE, results=tex>>=|
+\begin{lstlisting}
+myLatexTable <- LatexSummaryTable(summaryStats, keepCols=c("Title", "BIC", "Parameters"), sortBy="Parameters", caption="Comparing CFA vs. LCA according to number of parameters", label="CFALCATab")
+
+print(myLatexTable)
+\end{lstlisting}
+\lstinline|@|
+
+See the Sweave manual for more details.
+
+\end{document}
