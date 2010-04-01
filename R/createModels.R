@@ -421,7 +421,7 @@ processInit <- function(initsection) {
   
   #process sequence text for each iterator
   for (i in 1:length(arglist$iterators)) {
-    seqText <- eval(parse(text=paste("mysplit$", arglist$iterators[i], sep="")))
+    seqText <- eval(parse(text=paste("arglist$", arglist$iterators[i], sep="")))
     if (is.null(seqText)) {
       stop("Iterator specified: ", arglist$iterators[i], ", but not found")
     }

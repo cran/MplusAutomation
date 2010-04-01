@@ -1,3 +1,11 @@
+Version 0.2-5
+
+- Extracts Baseline Chi-square, SRMR, and WRMR using extractModelSummaries.
+- Allows target for extractModelSummaries to be a single file or a directory.
+- extractModelParameters now successfully extracts multiple group analyses. 
+- Fixed minor bug in extractModelParameters for calculating keyword match length.
+- Fixed minor bug in regular expression for parseChunk matching leading/trailing spaces (handled by strip.white).
+
 Version 0.2-4
 
 - Added package vignette (in the inst/doc directory).

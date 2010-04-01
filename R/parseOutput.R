@@ -78,9 +78,15 @@ getMultilineSection <- function(header, outfile, filename) {
   
 }
 
-#Chi-Square Test of Model Fit
+#Moving forward, specify model fit statistics as nested within sections. Develop general syntax along the lines of:
+#"AIC{dec},BIC{dec},AICC{dec}|Information Criteria"
+#This allows for all fit criteria to be nested within sections and to avoid the junky syntax below
+#But in the extract section, would not be very user-friendly
 
-modelParams <- function(outfile, filename, extract=c("Title", "LL", "BIC", "AIC", "AICC", "Parameters", "Observations", "BLRT", "RMSEA", "CFI", "TLI", "ChiSqModel", "aBIC", "Estimator"))
+
+modelParams <- function(outfile, filename, extract=c("Title", "LL", "BIC", "AIC", "AICC",
+  "Parameters", "Observations", "BLRT", "RMSEA", "CFI", "TLI", "ChiSqModel", "aBIC", 
+  "Estimator", "SRMR", "WRMR", "ChiSqBaseline"))
 {
 #modelParams(outfile, filename)
 #   outfile: this is the output file in string form to be parsed. Passed in from extractModelSummaries.
@@ -124,8 +130,18 @@ modelParams <- function(outfile, filename, extract=c("Title", "LL", "BIC", "AIC"
   processChiSqModel <- "ChiSqModel" %in% extract
   if (processChiSqModel) extract <- extract[!extract=="ChiSqModel"]
   
+  processChiSqBaseline <- "ChiSqBaseline" %in% extract
+  if (processChiSqBaseline) extract <- extract[!extract=="ChiSqBaseline"]
+    
   processEstimator <- "Estimator" %in% extract
   if (processEstimator) extract <- extract[!extract=="Estimator"]
+  
+  processSRMR <- "SRMR" %in% extract
+  if (processSRMR) extract <- extract[!extract=="SRMR"]
+  
+  processWRMR <- "WRMR" %in% extract
+  if (processWRMR) extract <- extract[!extract=="WRMR"]
+  
   
   expandField <- function(name) {
     #internal function used to convert short keyword names for parameters into their full Mplus output equivalents
@@ -220,7 +236,21 @@ modelParams <- function(outfile, filename, extract=c("Title", "LL", "BIC", "AIC"
       arglist$ChiSqM_PValue <- extractValue(name="^\\s*P-Value", ChiSqSection, filename, type="dec")
     }
   }
-  
+
+  if (processChiSqBaseline) {
+    ChiSqSection <- getMultilineSection("^\\s*Chi-Square Test of Model Fit for the Baseline Model\\s*$", outfile, filename)
+    arglist$ChiSqBaseline_Value <- NA_real_
+    arglist$ChiSqBaseline_DF <- NA_integer_
+    arglist$ChiSqBaseline_PValue <- NA_real_
+    
+    if (!is.na(ChiSqSection[1])) {
+      #need to use beginning of line caret to ensure that Value does not also match P-Value
+      arglist$ChiSqBaseline_Value <- extractValue(name="^\\s*Value", ChiSqSection, filename, type="dec")
+      arglist$ChiSqBaseline_DF <- extractValue(name="Degrees of Freedom", ChiSqSection, filename, type="int")
+      arglist$ChiSqBaseline_PValue <- extractValue(name="^\\s*P-Value", ChiSqSection, filename, type="dec")
+    }
+  }
+    
   if (processCFI || processTLI) {
     #default to missing in case section not present
     arglist$CFI <- NA_real_
@@ -289,6 +319,24 @@ modelParams <- function(outfile, filename, extract=c("Title", "LL", "BIC", "AIC"
     }
   }
   
+  if (processSRMR) {
+    arglist$SRMR <- NA_real_
+    SRMRSection <- getMultilineSection("SRMR \\(Standardized Root Mean Square Residual\\)", outfile, filename)
+    
+    if (!is.na(SRMRSection[1])) {
+      arglist$SRMR <- extractValue(name="Value", SRMRSection, filename, type="dec")
+    }
+  }
+  
+  if (processWRMR) {
+    arglist$WRMR <- NA_real_
+    WRMRSection <- getMultilineSection("WRMR \\(Weighted Root Mean Square Residual\\)", outfile, filename)
+    
+    if (!is.na(WRMRSection[1])) {
+      arglist$WRMR <- extractValue(name="Value", WRMRSection, filename, type="dec")
+    }
+  }
+  
   #arglist$InputInstructions <- as.character(outfile[(startInput+1):(endInput-1)])
   arglist$InputInstructions <- paste((outfile[(startInput+1):(endInput-1)]), collapse="\n")
   arglist$Filename <- filename
@@ -309,22 +357,37 @@ extractModelSummaries <- function(target=getwd(), recursive=FALSE, filefilter) {
 #   Example: myModels <- extractModelSummaries("C:/Documents and Settings/Michael/My Documents/Mplus Stuff/", recursive=TRUE)
   
   #retain working directory and reset at end of run
-  
+
   curdir <- getwd()
-  setwd(target)
   
-  #obtain list of all files in the specified directory
-  filelist <- list.files(recursive=recursive)
-  
-  #retain only .out files
-  outfiles <- filelist[grep(".*\\.out", filelist, ignore.case=TRUE)]
-  
-  if (!missing(filefilter)) {
-    dropOutExtensions <- sapply(outfiles, function(x) {
-          if (nchar(x) >= 4) return(tolower(substr(x, 1, (nchar(x)-4))))
-        })
-    outfiles <- outfiles[grep(paste(".*", filefilter, ".*", sep=""), dropOutExtensions, ignore.case=TRUE, perl=TRUE)]
+  #determine whether target is a file or a directory
+  if (file.exists(target)) {
+    if (file.info(target)$isdir == TRUE) {
+      #switch to target directory
+      setwd(target)
+      
+      #obtain list of all files in the specified directory
+      filelist <- list.files(recursive=recursive)
+      
+      #retain only .out files
+      outfiles <- filelist[grep(".*\\.out", filelist, ignore.case=TRUE)]
+      
+      if (!missing(filefilter)) {
+        dropOutExtensions <- sapply(outfiles, function(x) {
+              if (nchar(x) >= 4) return(tolower(substr(x, 1, (nchar(x)-4))))
+            })
+        outfiles <- outfiles[grep(paste(".*", filefilter, ".*", sep=""), dropOutExtensions, ignore.case=TRUE, perl=TRUE)]
+      }      
+    }
+    else {
+      #ensure that target is a single output file.
+      if (nchar(target) >= 4 && !substr(target, nchar(target) - 3, nchar(target)) == ".out") stop("Specified target is not an output file.\n  Target:", target)
+      
+      #outfiles collection is just one file
+      outfiles <- target      
+    }
   }
+  else stop("Specified target does not exist.\n  Target: ", target)
   
   if (length(outfiles) == 0) { 
     warning("No output files detected in this directory.")
@@ -625,7 +688,12 @@ extractModelParameters <- function(outfile, resultType="raw") {
 
   #helper function used to parse each chunk of output (will be many if latent classes are used)
   parseChunk <- function(thisChunk) {
-    matches <- gregexpr("^\\s*((Means|Thresholds|Intercepts|Variances|Residual Variances)|([\\w_\\d+\\.]+\\s+(BY|WITH|ON|\\|)))\\s*$", thisChunk, perl=TRUE)
+    #note that this regexp includes leading and trailing spaces in the match (potentially problematic for substr operations)
+    #but nice to have to ensure that the lines are otherwise clear
+    #handled by string trimming below in ddply.
+    #scratch that.... strip.white above ensures that no leading or trailing spaces.
+    matches <- gregexpr("^((Means|Thresholds|Intercepts|Variances|Residual Variances)|([\\w_\\d+\\.]+\\s+(BY|WITH|ON|\\|)))$", thisChunk, perl=TRUE)
+    
     #cbind together the start and end matches for each line of the gregexpr list
     #then rbind together all of the start and end lines to create a matrix
     #convertMatches <- do.call("rbind", lapply(matches, function(x) cbind(x, attr(x, "match.length"))))
@@ -633,7 +701,9 @@ extractModelParameters <- function(outfile, resultType="raw") {
     #convertMatches2 <- data.frame(line=1:nrow(convertMatches),start=convertMatches[,1], end=convertMatches[,2])
     
     #more readable (than above) using ldply from plyr
-    convertMatches <- ldply(matches, function(row) data.frame(start=row, end=attr(row, "match.length")))
+    convertMatches <- ldply(matches, function(row) data.frame(start=row, end=row+attr(row, "match.length")-1))
+    
+    #beware faulty logic below... assumes only one match per line (okay here)
     convertMatches$startline <- 1:nrow(convertMatches)
     
     #only keep lines with a single match
@@ -644,6 +714,7 @@ extractModelParameters <- function(outfile, resultType="raw") {
     convertMatches <- ddply(convertMatches, "startline", function(row) {
           #pull the matching keyword based on the start/end attributes from gregexpr
           match <- substr(thisChunk[row$startline], row$start, row$end)
+          
           #check for keyword
           if (match %in% c("Means", "Thresholds", "Intercepts", "Variances", "Residual Variances")) {
             return(data.frame(startline=row$startline, keyword=make.names(match), varname=NA_character_, operator=NA_character_))
@@ -696,7 +767,8 @@ extractModelParameters <- function(outfile, resultType="raw") {
   
   
   #check for latent classes
-  latentClassMatches <- grep("^\\s*Latent Class \\d+\\s*$", modelSection, ignore.case=TRUE, perl=TRUE)
+  latentClassMatches <- grep("^\\s*Latent Class (Pattern )*(\\d+\\s*)+$", modelSection, ignore.case=TRUE, perl=TRUE)
+  multipleGroupMatches <- grep("^\\s*Group \\w+\\s*$", modelSection, ignore.case=TRUE, perl=TRUE)
   
   if (length(latentClassMatches) > 0) {
     #if there are latent class sections, read these one at a time.
@@ -728,6 +800,22 @@ extractModelParameters <- function(outfile, resultType="raw") {
       }
     }
     
+    return(bigFrame)
+  }
+  else if (length(multipleGroupMatches) > 0) {
+    #todo: support multilevel analysis, parse between and within
+    #combine results per group
+    bigFrame <- c()
+    for (i in 1:length(multipleGroupMatches)) {
+      if (i < length(multipleGroupMatches)) thisChunk <- modelSection[(multipleGroupMatches[i]+1):(multipleGroupMatches[i+1]-1)]
+      else if (i == length(multipleGroupMatches)) thisChunk <- modelSection[(multipleGroupMatches[i]+1):length(modelSection)] 
+      
+      parsedChunk <- parseChunk(thisChunk)
+      
+      groupName <- sub("^\\s*Group (\\w+)\\s*$", "\\1", modelSection[multipleGroupMatches[i]], perl=TRUE)
+      parsedChunk$Group <- groupName
+      bigFrame <- rbind(bigFrame, parsedChunk)
+    }
     return(bigFrame)
   }
   else return(parseChunk(modelSection))

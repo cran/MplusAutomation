@@ -2,7 +2,7 @@
 \Rdversion{1.1}
 \alias{extractModelSummaries}
 %- Also NEED an '\alias' for EACH other topic documented here.
-\title{Parse a group of Mplus models within a directory}
+\title{Extract summary statistics from a single output file or from a group of Mplus models within a directory}
 \description{
 Parses a group of Mplus model output files (.out extension) for model fit statistics.
 At this time, the details extracted are fixed and include: \code{Filename, InputInstructions, Title, Estimator, 
@@ -15,8 +15,8 @@ extractModelSummaries(target = getwd(), recursive = FALSE, filefilter)
 }
 
 \arguments{
-  \item{target}{the directory containing Mplus output files (.out) to parse.
-  	Defaults to the current working directory. Example: "C:/Users/Michael/Mplus Runs"}
+  \item{target}{the directory containing Mplus output files (.out) to parse OR the single output file to
+  	be parsed. Defaults to the current working directory. Example: "C:/Users/Michael/Mplus Runs"}
   \item{recursive}{optional. If \code{TRUE}, parse all models nested in subdirectories
   	within \code{directory}. Defaults to \code{FALSE}.}
   \item{filefilter}{a Perl regular expression (PCRE-compatible) specifying particular output
@@ -53,6 +53,11 @@ The \code{data.frame} contains the following variables:
 \item{BLRT_KM1LL}{Log-likelihood of the K-1 model (one less class) for the Bootstrapped Likelihood Ratio Test (TECH14).}
 \item{BLRT_PValue}{P-value of the Bootstrapped Likelihood Ratio Test (TECH14) testing whether the K class model is significantly better than K-1}
 \item{BLRT_Numdraws}{The number of bootstrapped samples used in the Bootstrapped Likelihood Ratio Test}
+\item{SRMR}{Standardized root mean square residual}
+\item{WRMR}{Weighted root mean square residual}
+\item{ChiSqBaseline_Value}{Baseline (unstructured) chi-squared value}
+\item{ChiSqBaseline_DF}{Baseline (unstructured) chi-squared degrees of freedom}
+\item{ChiSqBaseline_PValue}{Baseline (unstructured) chi-squared p value}
 }
 %\references{
 %% ~put references to the literature/web site here ~

@@ -24,20 +24,25 @@ columns=fullflexible						%makes character spacing nice
 \setlength{\parskip}{0.3cm}
 \title{MplusAutomation Examples}
 \author{Michael N. Hallquist}
-\date{Package version 0.2-4}
+\date{Package version 0.2-5}
 \maketitle
 \tableofcontents
 \bigskip
 %Note that I need to set the directory before building this file, but shouldn't set it using setwd
 %because then CRAN maintainers can't link to the same directory.
 %setwd("C:/Data_Analysis/Mplus_Automation/pkg/inst/doc")
+\section{Overview}
+This guide provides examples of how to use the functions in the MplusAutomation package.
+The package is designed to automate three major aspects of latent variable modeling in Mplus:
+1) creating related groups of models, 2) running batches of models, and 3) extracting and tabulating
+model parameters and fit statistics.
 
-This guide tries to make few assumptions about the user's familiarity with the
+The guide tries to make few assumptions about the user's familiarity with the
 R environment, as many Mplus user's may be unfamiliar with R.
 
 Note: all examples herein rely on examples from the Mplus User's Guide. The input
 and output files for these examples are assumed to reside in the directory:
-\lstinline[breakatwhitespace=false]|C:\Program Files (x86)\Mplus\Mplus Examples\User's Guide Examples|. If you 
+\lstinline[breakatwhitespace=false]|C:\Program Files\Mplus\Mplus Examples\User's Guide Examples|. If you 
 have installed Mplus to a different location, please use the correct directory in
 the code below.
 
@@ -72,14 +77,14 @@ of related models located within a directory (or nested subdirectories).
 
 As an example, say that we want to run all of the models used in the Mplus 5.1
 Addendum: \url{http://statmodel.com/download/examples1.pdf}. The input files for these
-are located in: \lstinline[breakatwhitespace=false]|C:\Program Files (x86)\Mplus\Mplus Examples\Addendum Examples|.
+are located in: \lstinline[breakatwhitespace=false]|C:\Program Files\Mplus\Mplus Examples\Addendum Examples|.
 
 To run this batch, enter this at the command line:
 
-\lstinline|> runModels("C:/Program Files (x86)/Mplus/Mplus Examples/Addendum Examples")|
+\lstinline|> runModels("C:/Program Files/Mplus/Mplus Examples/Addendum Examples")|
 
 Note that you need to use forward slashes ("/"), not backslashes("\textbackslash")
-in the path name. Alternatively, you could use double backslashes (e.g., \lstinline|"C:\\Program Files (x86)"| etc.).
+in the path name. Alternatively, you could use double backslashes (e.g., \lstinline|"C:\\Program Files"| etc.).
 
 \subsection{Advanced use of runModels}
 \subsubsection{Recursing through subdirectories}
@@ -216,7 +221,7 @@ Note that the function automatically searches only files with the .out extension
 necessary to include .out in the file filter. 
 
 \begin{lstlisting}
-summaryStats <- extractModelSummaries("C:/Program Files (x86)/Mplus/Mplus Examples/User's Guide Examples/Outputs", filefilter="ex4.*")
+summaryStats <- extractModelSummaries("C:/Program Files/Mplus/Mplus Examples/User's Guide Examples/Outputs", filefilter="ex4.*")
 \end{lstlisting}
 
 Here is a more complex filter that matches filenames that begin with the digits 1, 2, or 3 
@@ -228,7 +233,7 @@ summaryStats <- extractModelSummaries("C:/Data_Analysis/Multiclass Models", file
 \end{lstlisting}
 
 \subsection{Listing of summary statistics extracted by extractModelSummaries}
-As of this version of the package (0.2-4), the following summary statistics are automatically extracted,
+As of this version of the package (0.2-5), the following summary statistics are automatically extracted,
 when available:
 
 \begin{itemize}
@@ -258,6 +263,12 @@ when available:
 	\item \lstinline|BLRT_KM1LL|: Log-likelihood of the K-1 model (one less class) for the Bootstrapped Likelihood Ratio Test (TECH14)
 	\item \lstinline|BLRT_PValue|: P-value of the Bootstrapped Likelihood Ratio Test (TECH14) testing whether the K class model is significantly better than K-1
 	\item \lstinline|BLRT_Numdraws|: The number of bootstrapped samples used in the Bootstrapped Likelihood Ratio Test
+	\item \lstinline|SRMR|: Standardized root mean square residual
+	\item \lstinline|WRMR|: Weighted root mean square residual
+	\item \lstinline|ChiSqBaseline_Value|: Baseline (unstructured) chi-squared value
+	\item \lstinline|ChiSqBaseline_DF|: Baseline (unstructured) chi-squared degrees of freedom
+	\item \lstinline|ChiSqBaseline_PValue|: Baseline (unstructured) chi-squared p value
+	
 \end{itemize}
 
 
@@ -341,6 +352,100 @@ print(myLatexTable)
 \end{lstlisting}
 \lstinline|@|
 
-See the Sweave manual for more details.
+See the Sweave manual for more details about combining LaTex with R.
+
+%\section{Creating groups of models from an Mplus template file}
+%NOTE: THIS SECTION IS IN PROGRESS AND THE TEMPLATE LANGUAGE FEATURES ARE NOT YET
+%PART OF THE PACKAGE (as of version 0.2-5).
+%
+%The third major focus of the MplusAutomation package is to provide tools that automate
+%the process of creating input files for related groups of models. Perhaps the simplest
+%example of a related group of models is latent class analysis, where one runs a certain
+%model with different numbers of classes, but the input files are otherwise the same.
+%
+%The \lstinline|createModels| function processes files stored as Mplus template inputs.
+%There are five major types of tags supported by the Mplus Template Language.
+%\begin{enumerate}
+%	\item simple: A value defined in the init section is substituted wherever the simple tag
+%		occurs in the body section.
+%	\item array: A certain element of an array of values is substituted depending on the value of the
+%		current iterator.
+%	\item iterator: The numeric value of the iterator is substituted.
+%	\item foreach: A certain block of code is repeated for each iteration of a given iterator variable.
+%	\item conditional: A certain block of code is included only if a condition is met (e.g., classes > 1).
+%\end{enumerate}
+%\subsection{foreach tags}
+%The foreach tag provides a mechanism for duplicating a block of Mplus syntax one or more times
+%within the generated input files. This tag is especially useful in mixture modeling applications
+%where one wants to estimate certain parameters within each class (rather than fixing the parameters to be
+%equal across classes).
+%
+%\subsubsection{Basic use of foreach tag}
+%Foreach tags always occur in pairs, where the opening tag and the closing tag demarcate the
+%block of code to be repeated for each iteration through the looping variable.
+%The foreach tag should take the form [[foreach <iterator>]], where <iterator> represents
+%one of the iterator variables defined by the \lstinline|iterator_wrt| variable in the init
+%section.
+%
+%The closing tag for a foreach section is always [[/foreach]].
+%
+%Basic example:
+%
+%\begin{lstlisting}
+%[[foreach class]]
+%%c#[[class]]%
+%	f1 BY u1*-u9;
+%	f2 BY u10*-u18;
+%	f1;
+%	f2;
+%[[/foreach]]
+%\end{lstlisting}
+%
+%If the \lstinline|class| iterator ranged from 1-3, the code produced by the above foreach seciont would be:
+%
+%\begin{lstlisting}
+%%c#1%
+%	f1 BY u1*-u9;
+%	f2 BY u10*-u18;
+%	f1;
+%	f2;
+%
+%%c#2%
+%	f1 BY u1*-u9;
+%	f2 BY u10*-u18;
+%	f1;
+%	f2;
+%
+%%c#3%
+%	f1 BY u1*-u9;
+%	f2 BY u10*-u18;
+%	f1;
+%	f2;	
+%\end{lstlisting}
+%
+%\subsubsection{Applied example of foreach tag: Freeing regressions of growth parameters on covariates across
+%classes in growth mixture modeling}
+%
+%In growth mixture modeling, one is often interested in the effect of covariates (e.g., sex, treatment history, or
+%genotype) on growth parameters such as intercept and slope. This model is depicted below:
+%
+%%Swipe model from Mplus User's Guide
+%
+%The basic syntax for such a model can be found in Example X.X, which is shown below.
+%
+%By default, regression coefficients are fixed to equality across classes unless syntax is included within each
+%class to request that these be estimated for each class. Overriding this default is typically done in the following way:
+%
+%\begin{lstlisting}
+%
+%%c#1%
+%Int Slope ON sex age;
+%
+%%c#2%
+%Int Slope ON sex age;
+%\end{lstlisting}
+%
+%Two examples: freeing estimates within classes and constraining
+%thresholds within class over several classes. 
 
 \end{document}
