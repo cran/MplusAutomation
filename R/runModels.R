@@ -2,6 +2,8 @@
 splitFilePath <- function(abspath) {
   #function to split absolute path into path and filename 
   #code adapted from R.utils filePath command
+  if (!is.character(abspath)) stop("Path not a character string")
+  if (nchar(abspath) < 1 || is.na(abspath)) stop("Path is missing or of zero length")
   
   components <- strsplit(abspath, split="[\\/]")[[1]]
   lcom <- length(components)
@@ -222,7 +224,9 @@ runModels <- function(directory=getwd(), recursive=FALSE, showOutput=FALSE, repl
   }
   
   isLogOpen <- function() {
-    #this won't work if the log file specification is an absolute path
+    #if null is passed as the log file, then it is by definition not open (non-existent)
+    if (is.null(logFile)) return(FALSE)
+    
     connections <- data.frame(showConnections(all = FALSE))
     if (length(grep(splitFilePath(logFile)$filename, connections$description, ignore.case=TRUE)) > 0) return(TRUE)
     else return(FALSE)
@@ -232,7 +236,7 @@ runModels <- function(directory=getwd(), recursive=FALSE, showOutput=FALSE, repl
   exitRun <- function() {
     require(plyr)
     
-    if(isLogOpen()) {
+    if(normalComplete == FALSE) {
       writeLines("Run terminated abnormally", logTarget)
       flush(logTarget)
     }
@@ -287,7 +291,8 @@ runModels <- function(directory=getwd(), recursive=FALSE, showOutput=FALSE, repl
   curdir <- getwd()
   setwd(directory)
   filelist <- list.files(recursive=recursive)
-  
+	normalComplete <- FALSE
+	
   #select only .inp files using grep
   inpfiles <- filelist[grep(".*\\.inp", filelist, ignore.case=TRUE)]
   outfiles <- filelist[grep(".*\\.out", filelist, ignore.case=TRUE)]
@@ -368,14 +373,9 @@ runModels <- function(directory=getwd(), recursive=FALSE, showOutput=FALSE, repl
     
   }
 
-  #reset working directory
-  setwd(curdir)
-  
-  #close log file
-  if (isLogOpen()) {
+	if (isLogOpen()) {
     writeLines(c("", paste("------End Mplus Model Run: ", format(Sys.time(), "%d%b%Y %H:%M:%S"), "------", sep="")), logTarget)
     flush(logTarget)
-    #maybe move this into the exit routine?? exit always runs.
-    close(logTarget)
+		normalComplete <- TRUE
   }
 }

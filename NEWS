@@ -1,3 +1,12 @@
+Version 0.3
+- Corrected bug with getSaveData_Fileinfo not reading integer-format variables (e.g., I5).
+- Includes first implementation of Mplus template language: createModels function.
+- Improved handling of runModels log file. Was closing the file before exitRun had completed.
+- Fixed bug in isLogOpen that caused it to error when logFile was NULL.
+- Improved parameter checking in splitFilePath
+- Removed createTable function (now divided into LatexSummaryTable, HTMLSummaryTable, and showSummaryTable functions)
+- Updated Vignette for Mplus template language.
+
 Version 0.2-5
 
 - Extracts Baseline Chi-square, SRMR, and WRMR using extractModelSummaries.

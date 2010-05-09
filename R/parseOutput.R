@@ -489,7 +489,7 @@ getSavedata_Fileinfo <- function(outfile) {
   variableNames <- sub("^([\\w\\d\\.]+)\\s+[\\w\\d\\.]+\\s*$", "\\1", variablesToParse, perl=TRUE)
   variableFormats <- sub("^[\\w\\d\\.]+\\s+([\\w\\d\\.]+)\\s*$", "\\1", variablesToParse, perl=TRUE)
   
-  variableWidths <- strapply(variableFormats, "[EFG]+(\\d+)\\.\\d+", as.numeric, perl=TRUE, simplify=TRUE)
+  variableWidths <- strapply(variableFormats, "[IEFG]+(\\d+)(\\.\\d+)*", as.numeric, perl=TRUE, simplify=TRUE)
   
   #trim leading and trailing space from the filename
   fileName <- sub("^\\s*","", savedataSection[saveFileStart+1], perl=TRUE)
@@ -663,6 +663,13 @@ extractModelParameters <- function(outfile, resultType="raw") {
   else if (resultType=="std") beginModel <- grep("^STD Standardization$", readfile)
   else stop("Unsupported result type. Must be one of: \"raw\", \"stdyx\", \"stdy\", \"std\"")
   
+  #In previous Mplus versions, std estimates were one per column. (implementation in progress)
+  oldStandardization <- FALSE
+  if (!length(beginModel) == 1 && resultType %in% c("stdyx", "stdy", "std")) {
+    beginModel <- grep("^STANDARDIZED MODEL RESULTS$", readfile)
+    oldStandardization <- TRUE
+  }
+  
   #the end of the model results section is demarcated by two blank lines
   endModel <- 0
   for (row in beginModel+1:length(readfile)) {
@@ -683,11 +690,18 @@ extractModelParameters <- function(outfile, resultType="raw") {
     warning("model results + 3 is not the estimate s.e. line")
   }
   
-  #select the model section for further processing
+  #select the model section for further processing (note that the + 1 drops the blank line after the "MODEL RESULTS"
+  #and drops both blank lines at the bottom
   modelSection <- readfile[(beginModel+1):(endModel-1)]
 
+  #detect column names (in progress)
+  if (regexpr("^\\s*Estimate\\s+S\\.E\\.\\s+Est\\./S\\.E\\.\\s+P-Value\\s*$", 
+      modelSection[2],perl=TRUE) > 0) columnNames <- c("param", "est", "se", "est_se", "pval")
+  else if (regexpr("^\\s*StdYX\\s+Std\\s*$", 
+      modelSection[1], perl=TRUE) > 0) columnNames <- c("stdyx", "std")
+  
   #helper function used to parse each chunk of output (will be many if latent classes are used)
-  parseChunk <- function(thisChunk) {
+  parseChunk <- function(thisChunk, oldStandardization, columnNames) {
     #note that this regexp includes leading and trailing spaces in the match (potentially problematic for substr operations)
     #but nice to have to ensure that the lines are otherwise clear
     #handled by string trimming below in ddply.
@@ -732,7 +746,25 @@ extractModelParameters <- function(outfile, resultType="raw") {
       
       chunk <- thisChunk[convertMatches[i, "startline"]:convertMatches[i, "endline"]]
       
-      chunkParsed <- strapply(chunk, "^\\s*(\\w+[\\w_\\d+\\.\\$#]+)\\s+([-\\d\\.]+)\\s+([-\\d\\.]+)\\s+([-\\d\\.]+)\\s+([-\\d\\.]+)\\s*$", 
+      #define the var title outside of the chunk processing because it will apply to all rows
+      if (is.na(convertMatches[i,]$keyword)) varTitle <- paste(convertMatches[i,"varname"], ".", convertMatches[i,]$operator, sep="")
+      else varTitle <- as.character(convertMatches[i,"keyword"])
+      
+      #for old standardization, use different approach (in progress)
+#      if (oldStandardization == TRUE) {
+#        if (i==1) {
+#          #subtract 1 from the length because the first split will always be variable name
+#          numCols <- length(strsplit(chunk[1], "\\s+", perl=TRUE)[[1]]) - 1
+#        }
+#        
+#        splitRow <- strsplit(chunk, "\\s+", perl=TRUE)
+#        splitRow <- ldply(splitRow, function(row) {
+#              if (numCols)
+#            })
+#      }      
+      
+      #couldn't I rework this with a simpler str split?
+			chunkParsed <- strapply(chunk, "^\\s*(\\w+[\\w\\.\\$#]*)\\s+([-\\d\\.]+)\\s+([-\\d\\.]+)\\s+([-\\d\\.]+)\\s+([-\\d\\.]+)\\s*$", 
           function(varmatch, est, se, est_se, pval) {
             if (is.na(convertMatches[i,]$keyword)) varTitle <- paste(convertMatches[i,]$varname, ".", convertMatches[i,]$operator, sep="")
             else varTitle <- as.character(convertMatches[i,]$keyword)
@@ -787,14 +819,14 @@ extractModelParameters <- function(outfile, resultType="raw") {
         else thisChunk <- modelSection[(latentClassMatches[i]+1):length(modelSection)]
       } 
       
-      parsedChunk <- parseChunk(thisChunk)
+      parsedChunk <- parseChunk(thisChunk, oldStandardization)
       lcNum <- sub("^\\s*Latent Class (\\d+)\\s*$", "\\1", modelSection[latentClassMatches[i]], perl=TRUE)
       parsedChunk$LatentClass <- lcNum
       bigFrame <- rbind(bigFrame, parsedChunk)
       
       if (catVars == TRUE) {
         catChunk <- modelSection[(catPos+1):length(modelSection)]
-        catParsed <- parseChunk(catChunk)
+        catParsed <- parseChunk(catChunk, oldStandardization)
         catParsed$LatentClass <- "CatVars"
         bigFrame <- rbind(bigFrame, catParsed)
       }
@@ -810,7 +842,7 @@ extractModelParameters <- function(outfile, resultType="raw") {
       if (i < length(multipleGroupMatches)) thisChunk <- modelSection[(multipleGroupMatches[i]+1):(multipleGroupMatches[i+1]-1)]
       else if (i == length(multipleGroupMatches)) thisChunk <- modelSection[(multipleGroupMatches[i]+1):length(modelSection)] 
       
-      parsedChunk <- parseChunk(thisChunk)
+      parsedChunk <- parseChunk(thisChunk, oldStandardization)
       
       groupName <- sub("^\\s*Group (\\w+)\\s*$", "\\1", modelSection[multipleGroupMatches[i]], perl=TRUE)
       parsedChunk$Group <- groupName
@@ -818,9 +850,6 @@ extractModelParameters <- function(outfile, resultType="raw") {
     }
     return(bigFrame)
   }
-  else return(parseChunk(modelSection))
+  else return(parseChunk(modelSection, oldStandardization))
   
-#useful command for full-text searching within r source files:
-#find ./ -iname "*.r" -print0 | xargs -0 grep "match.length"
-#need print0 and -0 to null-terminate find results, which allows for spaces in file names  
 }

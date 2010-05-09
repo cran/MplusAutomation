@@ -3,6 +3,7 @@ import(tcltk)
 import(plyr)
 import(relimp)
 
-export(runModels, runModels_Interactive, createTable, extractModelSummaries, 
+export(runModels, runModels_Interactive, extractModelSummaries, 
 	extractModelParameters, getSavedata_Data, getSavedata_Fileinfo,
-	showSummaryTable, LatexSummaryTable, HTMLSummaryTable)
+	showSummaryTable, LatexSummaryTable, HTMLSummaryTable,
+	createModels)
