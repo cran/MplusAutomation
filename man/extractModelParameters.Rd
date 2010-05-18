@@ -29,7 +29,11 @@ extractModelParameters(outfile, resultType="raw")
 
 If the model contains multiple latent classes, an additional variable, \code{LatentClass},
 will be included, specifying the latent class number. Also, the Categorical Latent Variables section
-will be included as \code{LatentClass} "CatVars."
+will be included as \code{LatentClass} "Categorical.Latent.Variables."
+
+If the model contains multiple groups, \code{Group} will be included.
+
+If the model contains two-level output (between/within), \code{BetweenWithin} will be included.
 }
 \author{Michael Hallquist}
 \seealso{

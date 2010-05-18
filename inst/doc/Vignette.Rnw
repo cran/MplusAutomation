@@ -24,7 +24,7 @@ columns=fullflexible						%makes character spacing nice
 \setlength{\parskip}{0.3cm}
 \title{MplusAutomation Examples}
 \author{Michael N. Hallquist}
-\date{Package version 0.3}
+\date{Package version 0.3-1}
 \maketitle
 \tableofcontents
 \bigskip
@@ -236,7 +236,7 @@ summaryStats <- extractModelSummaries("C:/Data_Analysis/Multiclass Models", file
 \end{lstlisting}
 
 \subsection{Listing of summary statistics extracted by extractModelSummaries}
-As of this version of the package (0.3), the following summary statistics are automatically extracted,
+As of this version of the package (0.3-1), the following summary statistics are automatically extracted,
 when available:
 
 \begin{itemize}
@@ -743,9 +743,9 @@ zeroclassnames#zeroclass = "" " with zero class";
 #wave names are with respect to the outcome iterator
 w1name#outcome = Paran1 Szoid1 Sztyp1 Anti1 Border1 Hist1
 	Narc1 Avoid1 Depend1 OCPD1;
-w2name = Paran2 Szoid2 Sztyp2 Anti2 Border2 Hist2
+w2name#outcome = Paran2 Szoid2 Sztyp2 Anti2 Border2 Hist2
 	Narc2 Avoid2 Depend2 OCPD2;
-w3name = Paran3 Szoid3 Sztyp3 Anti3 Border3 Hist3
+w3name#outcome = Paran3 Szoid3 Sztyp3 Anti3 Border3 Hist3
 	Narc3 Avoid3 Depend3 OCPD3;
 
 filename = "[[classes]]-class [[groupnames#group]] [[outcomenames#outcome]] [[modelnames#model]][[zeroclassnames#zeroclass]].inp";

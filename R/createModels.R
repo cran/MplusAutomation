@@ -348,7 +348,7 @@ recurseReplace <- function(templateTags, initCollection, curiterator=1) {
     #this has the same effect as above (appending as it recurses), but allows for name-based lookup
     initCollection$curItPos[thisIterator] <- i
     
-    print(paste("current iterator is: ", thisIterator, " position:", as.character(i)))
+    #print(paste("current iterator is:", thisIterator, ", position:", as.character(i)))
     
     #process foreach commands
     #For now, take this out
@@ -882,7 +882,7 @@ processInit <- function(initsection) {
 		arglist[[thisIt]] <- sort(unique(arglist[[thisIt]]))
 	}
 	
-	browser()
+	#browser()
 	
   
 	#now that iterators are defined, ensure that list tags match
@@ -918,7 +918,7 @@ processInit <- function(initsection) {
 				return(element)
 			})
 
-	browser()
+	#browser()
 	
 	
   #default output directory to the current directory

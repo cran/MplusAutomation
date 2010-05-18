@@ -345,7 +345,6 @@ modelParams <- function(outfile, filename, extract=c("Title", "LL", "BIC", "AIC"
 } 
 
 extractModelSummaries <- function(target=getwd(), recursive=FALSE, filefilter) {
-#TODO: Allow target to be a directory or a single file
 #extractModelSummaries(target, recursive=FALSE)
 #
 #   target: the directory containing Mplus output files to read. Use forward slashes in directory name (e.g., "C:/Users/Mplus/"). Defaults to working directory.
@@ -650,6 +649,98 @@ createTable <- function(modelList, filename=file.path(getwd(), "Model Comparison
   
 }
 
+#helper function for extractModelParameters. Used to parse each chunk of output (will be many if latent classes, multiple groups are used)
+parseChunk <- function(thisChunk, oldStandardization, resultType) {
+	#note that this regexp includes leading and trailing spaces in the match (potentially problematic for substr operations)
+	#but nice to have to ensure that the lines are otherwise clear
+	#handled by string trimming below in ddply.
+	#scratch that.... strip.white above ensures that no leading or trailing spaces.
+	matches <- gregexpr("^((Means|Thresholds|Intercepts|Variances|Residual Variances)|([\\w_\\d+\\.]+\\s+(BY|WITH|ON|\\|)))$", thisChunk, perl=TRUE)
+	
+	#more readable (than above) using ldply from plyr
+	convertMatches <- ldply(matches, function(row) data.frame(start=row, end=row+attr(row, "match.length")-1))
+	
+	#beware faulty logic below... assumes only one match per line (okay here)
+	convertMatches$startline <- 1:nrow(convertMatches)
+	
+	#only keep lines with a single match
+	#this removes rows that are -1 from gregexpr
+	convertMatches <- subset(convertMatches, start > 0)
+	
+	#develop a dataframe that divides into keyword matches versus variable matches
+	convertMatches <- ddply(convertMatches, "startline", function(row) {
+				#pull the matching keyword based on the start/end attributes from gregexpr
+				match <- substr(thisChunk[row$startline], row$start, row$end)
+				
+				#check for keyword
+				if (match %in% c("Means", "Thresholds", "Intercepts", "Variances", "Residual Variances")) {
+					return(data.frame(startline=row$startline, keyword=make.names(match), varname=NA_character_, operator=NA_character_))
+				}
+				else if (length(variable <- strapply(match, "^\\s*([\\w_\\d+\\.]+)\\s+(BY|WITH|ON|\\|)\\s*$", c, perl=TRUE)[[1]]) > 0) {
+					return(data.frame(startline=row$startline, keyword=NA_character_, varname=variable[1], operator=variable[2]))
+				}
+				else stop("failure to match keyword: ", match)
+			})
+	
+	comboFrame <- c()
+	
+	#convertMatches will now contain a data.frame marking the section headers for the chunk
+	#example:
+	#		startline keyword varname operator endline
+	#		        7    <NA>      FW       BY      12
+	#		       13    <NA>      FW       ON      16
+	
+	for (i in 1:nrow(convertMatches)) {
+		if (i < nrow(convertMatches)) convertMatches[i,"endline"] <- convertMatches[i+1,"startline"]-1
+		else convertMatches[i,"endline"] <- length(thisChunk)
+		
+		#need +1 to eliminate header row from params 
+		paramsToParse <- thisChunk[(convertMatches[i, "startline"]+1):convertMatches[i, "endline"]]
+		
+		#should result in a short list of params to parse (that belong to a given header i)
+		#Example:
+		#"U1                 0.557      0.036     15.470      0.000"
+		#"U2                 0.638      0.038     16.751      0.000"
+		#"U3                 0.660      0.038     17.473      0.000"
+		#"U4                 0.656      0.037     17.585      0.000"
+		
+		#define the var title outside of the chunk processing because it will apply to all rows
+		if (is.na(convertMatches[i,]$keyword)) varTitle <- paste(convertMatches[i,"varname"], ".", convertMatches[i,]$operator, sep="")
+		else varTitle <- as.character(convertMatches[i,"keyword"])
+		
+		splitParams <- strsplit(paramsToParse, "\\s+", perl=TRUE)
+		
+		parsedParams <- ldply(splitParams, function(row) {
+					#assume that length 5 corresponds to varname, param, se, param/se, and p-val
+					if (length(row) == 5) {
+						return(data.frame(paramHeader=varTitle, param=row[1], est=as.numeric(row[2]), 
+										se=as.numeric(row[3]), est_se=as.numeric(row[4]), pval=as.numeric(row[5]), stringsAsFactors=FALSE))
+					}
+					#assume that length 3 corresponds to varname, stdyx estimate, std estimate (applies to wls estimators with covariates and MUML (p. 643 of User's Guide)
+					else if (length(row) == 3) {
+						if (resultType=="stdyx") return(data.frame(paramHeader=varTitle, param=row[1], est=as.numeric(row[2]), stringsAsFactors=FALSE))
+						else if (resultType == "std") return(data.frame(paramHeader=varTitle, param=row[1], est=as.numeric(row[3]), stringsAsFactors=FALSE))
+					}
+					else if (length(row) == 4) {
+						if (resultType=="stdyx") return(data.frame(paramHeader=varTitle, param=row[1], est=as.numeric(row[2]), stringsAsFactors=FALSE))
+						else if (resultType=="stdy") return(data.frame(paramHeader=varTitle, param=row[1], est=as.numeric(row[3]), stringsAsFactors=FALSE))
+						else if (resultType == "std") return(data.frame(paramHeader=varTitle, param=row[1], est=as.numeric(row[4]), stringsAsFactors=FALSE))
+					}
+					#warn if non-zero length. row of length 0 will be returned for empty strings
+					else if (length(row) != 0) warning("Unknown parameters encountered in model results. Skipping.\n  Row: ", row)
+				})
+		
+		#add the current chunk to the overall data.frame
+		comboFrame <- rbind(comboFrame, parsedParams)
+		
+	}
+	
+	#under the new strsplit strategy, just return the dataframe
+	return(comboFrame)
+	
+}
+
+
 extractModelParameters <- function(outfile, resultType="raw") {
   require(gsubfn)
   require(plyr)
@@ -665,18 +756,31 @@ extractModelParameters <- function(outfile, resultType="raw") {
   
   #In previous Mplus versions, std estimates were one per column. (implementation in progress)
   oldStandardization <- FALSE
-  if (!length(beginModel) == 1 && resultType %in% c("stdyx", "stdy", "std")) {
+  if (length(beginModel) < 1 && resultType %in% c("stdyx", "stdy", "std")) {
     beginModel <- grep("^STANDARDIZED MODEL RESULTS$", readfile)
     oldStandardization <- TRUE
   }
   
   #the end of the model results section is demarcated by two blank lines
+	#this is not a reliable marker!! See Example 9.7. Breaks down with twolevel model.
+	#maybe look for the next line that has no spaces at the beginning, but is all caps?
   endModel <- 0
   for (row in beginModel+1:length(readfile)) {
     #note short circuit && ensures that we will not go outside subscript bounds for readfile
     if (row < length(readfile) && readfile[row] == "" && readfile[row+1] == "") {
-      endModel <- row
-      break
+      #given problems with example 9.7, also test that row+2 is a line of all capital letters
+			#start by deleting all spaces
+			capsLine <- gsub("\\s+", "", readfile[row+2])
+			
+			#now search for any non-capital letter (also allow for hyphens)
+			hasNonCapitals <- regexpr("[^A-Z-]", capsLine, perl=TRUE) #will be -1 if all caps
+			
+			#if the next line is not all capitals, then continue reading output
+			#even this could choke on a line like FACTOR BY
+			if (hasNonCapitals < 0) {
+				endModel <- row
+      	break
+			}
     }
   }
   #should be one exact match for beginModel and non-zero endModel
@@ -684,172 +788,98 @@ extractModelParameters <- function(outfile, resultType="raw") {
   
   #these are here to warn for non-standard models (so that the code can be made more flexible in the future)
   #may need to tweak for Latent Class models
-  if (!readfile[beginModel+1]=="") warning("no blank line following MODEL RESULTS")
-  if (!readfile[beginModel+2]=="Two-Tailed") warning("model results + 2 != two-tailed")
-  if (!regexpr("^\\s*Estimate\\s+S\\.E\\.\\s+Est\\./S\\.E\\.\\s+P-Value\\s*$",readfile[beginModel+3],perl=TRUE) > 0) {
-    warning("model results + 3 is not the estimate s.e. line")
-  }
+  #if (!readfile[beginModel+1]=="") warning("no blank line following MODEL RESULTS")
+  #if (!readfile[beginModel+2]=="Two-Tailed") warning("model results + 2 != two-tailed")
+  #if (!regexpr("^\\s*Estimate\\s+S\\.E\\.\\s+Est\\./S\\.E\\.\\s+P-Value\\s*$",readfile[beginModel+3],perl=TRUE) > 0) {
+  #  warning("model results + 3 is not the estimate s.e. line")
+  #}
   
   #select the model section for further processing (note that the + 1 drops the blank line after the "MODEL RESULTS"
   #and drops both blank lines at the bottom
   modelSection <- readfile[(beginModel+1):(endModel-1)]
+ 
+	#more flexible handling of top-level model results dividers (which are often nested)
+	#At this point, handle 1) multiple groups: Group XYZ, 2) latent classes: Latent Class xyz, 3) two-level structure: Between Level, Within Level
+	#4) categorical latent variables: Categorical Latent Variables
 
-  #detect column names (in progress)
-  if (regexpr("^\\s*Estimate\\s+S\\.E\\.\\s+Est\\./S\\.E\\.\\s+P-Value\\s*$", 
-      modelSection[2],perl=TRUE) > 0) columnNames <- c("param", "est", "se", "est_se", "pval")
-  else if (regexpr("^\\s*StdYX\\s+Std\\s*$", 
-      modelSection[1], perl=TRUE) > 0) columnNames <- c("stdyx", "std")
-  
-  #helper function used to parse each chunk of output (will be many if latent classes are used)
-  parseChunk <- function(thisChunk, oldStandardization, columnNames) {
-    #note that this regexp includes leading and trailing spaces in the match (potentially problematic for substr operations)
-    #but nice to have to ensure that the lines are otherwise clear
-    #handled by string trimming below in ddply.
-    #scratch that.... strip.white above ensures that no leading or trailing spaces.
-    matches <- gregexpr("^((Means|Thresholds|Intercepts|Variances|Residual Variances)|([\\w_\\d+\\.]+\\s+(BY|WITH|ON|\\|)))$", thisChunk, perl=TRUE)
-    
-    #cbind together the start and end matches for each line of the gregexpr list
-    #then rbind together all of the start and end lines to create a matrix
-    #convertMatches <- do.call("rbind", lapply(matches, function(x) cbind(x, attr(x, "match.length"))))
-    #now convert it to a data frame with the line number included
-    #convertMatches2 <- data.frame(line=1:nrow(convertMatches),start=convertMatches[,1], end=convertMatches[,2])
-    
-    #more readable (than above) using ldply from plyr
-    convertMatches <- ldply(matches, function(row) data.frame(start=row, end=row+attr(row, "match.length")-1))
-    
-    #beware faulty logic below... assumes only one match per line (okay here)
-    convertMatches$startline <- 1:nrow(convertMatches)
-    
-    #only keep lines with a single match
-    #this removes rows that are -1 from gregexpr
-    convertMatches <- subset(convertMatches, start > 0)
-    
-    #develop a dataframe that divides into keyword matches versus variable matches
-    convertMatches <- ddply(convertMatches, "startline", function(row) {
-          #pull the matching keyword based on the start/end attributes from gregexpr
-          match <- substr(thisChunk[row$startline], row$start, row$end)
-          
-          #check for keyword
-          if (match %in% c("Means", "Thresholds", "Intercepts", "Variances", "Residual Variances")) {
-            return(data.frame(startline=row$startline, keyword=make.names(match), varname=NA_character_, operator=NA_character_))
-          }
-          else if (length(variable <- strapply(match, "^\\s*([\\w_\\d+\\.]+)\\s+(BY|WITH|ON|\\|)\\s*$", c, perl=TRUE)[[1]]) > 0) {
-            return(data.frame(startline=row$startline, keyword=NA_character_, varname=variable[1], operator=variable[2]))
-          }
-          else stop("failure to match keyword: ", match)
-        })
-    
-    comboFrame <- c()
-    for (i in 1:nrow(convertMatches)) {
-      if (i < nrow(convertMatches)) convertMatches[i,"endline"] <- convertMatches[i+1,"startline"]-1
-      else convertMatches[i,"endline"] <- length(thisChunk)
-      
-      chunk <- thisChunk[convertMatches[i, "startline"]:convertMatches[i, "endline"]]
-      
-      #define the var title outside of the chunk processing because it will apply to all rows
-      if (is.na(convertMatches[i,]$keyword)) varTitle <- paste(convertMatches[i,"varname"], ".", convertMatches[i,]$operator, sep="")
-      else varTitle <- as.character(convertMatches[i,"keyword"])
-      
-      #for old standardization, use different approach (in progress)
-#      if (oldStandardization == TRUE) {
-#        if (i==1) {
-#          #subtract 1 from the length because the first split will always be variable name
-#          numCols <- length(strsplit(chunk[1], "\\s+", perl=TRUE)[[1]]) - 1
-#        }
-#        
-#        splitRow <- strsplit(chunk, "\\s+", perl=TRUE)
-#        splitRow <- ldply(splitRow, function(row) {
-#              if (numCols)
-#            })
-#      }      
-      
-      #couldn't I rework this with a simpler str split?
-			chunkParsed <- strapply(chunk, "^\\s*(\\w+[\\w\\.\\$#]*)\\s+([-\\d\\.]+)\\s+([-\\d\\.]+)\\s+([-\\d\\.]+)\\s+([-\\d\\.]+)\\s*$", 
-          function(varmatch, est, se, est_se, pval) {
-            if (is.na(convertMatches[i,]$keyword)) varTitle <- paste(convertMatches[i,]$varname, ".", convertMatches[i,]$operator, sep="")
-            else varTitle <- as.character(convertMatches[i,]$keyword)
-            
-            #return(list(paramHeader=varTitle, param=varmatch, est=as.numeric(est), 
-            #se=as.numeric(se), est_se=as.numeric(est_se), pval=as.numeric(pval)))
-            
-            return(data.frame(paramHeader=varTitle, param=varmatch, est=as.numeric(est), 
-                    se=as.numeric(se), est_se=as.numeric(est_se), pval=as.numeric(pval), stringsAsFactors=FALSE))
-          },
-          perl=TRUE#, simplify=data.frame
-      )
-      
-      #strapply will return a list of data frames
-      chunkParsed <- do.call("rbind", chunkParsed)
-      
-      #add the current chunk to the overall data.frame
-      comboFrame <- rbind(comboFrame, chunkParsed)
-      
-    }
-    
-    #so, the combination of rbind and list returns from strapply
-    #yields a list stored as a matrix with dimnames and dims
-    #just doing as.data.frame results in a DF with elements that are lists themselves
-    #this is dumb. we just want a regular DF.
-    #may be able to improve this later, but for now we have to kludge
-    #the dataframe using lapply
-    #to unlist each column, then reassemble with data.frame
-    return(data.frame(lapply(data.frame(comboFrame), unlist)))
-    
-  }
-  
-  
-  #check for latent classes
+	#may need to avoid whitespace stripping from scan to ensure that we capture top-level tags, which lack a space
+	#can avoid this if the "two blank lines" rule holds... If Mplus folks fix the formatting bug of Example 9.7
+
+	betweenWithinMatches <- grep("^\\s*(Between|Within) Level\\s*$", modelSection, ignore.case=TRUE, perl=TRUE)
   latentClassMatches <- grep("^\\s*Latent Class (Pattern )*(\\d+\\s*)+$", modelSection, ignore.case=TRUE, perl=TRUE)
   multipleGroupMatches <- grep("^\\s*Group \\w+\\s*$", modelSection, ignore.case=TRUE, perl=TRUE)
+	catLatentMatches <- grep("^\\s*Categorical Latent Variables\\s*$", modelSection, ignore.case=TRUE)
+	
+	topLevelMatches <- sort(c(betweenWithinMatches, latentClassMatches, multipleGroupMatches, catLatentMatches))
+
+	if (length(topLevelMatches) > 0) {
+		bigFrame <- c()
+		lcNum <- NULL
+		bwWi <- NULL
+		groupName <- NULL
+		
+		matchIndex <- 1
+		for (match in topLevelMatches) {
+			#browser()
+			if (match %in% betweenWithinMatches) bwWi <- sub("^\\s*(Between|Within) Level\\s*$", "\\1", modelSection[match], perl=TRUE)
+			else if (match %in% latentClassMatches) {
+				if (pos <- regexpr("Pattern", modelSection[match], ignore.case=TRUE) > 0) {
+					#need to pull out and concatenate all numerical values following pattern
+					postPattern <- trimSpace(substr(modelSection[match], pos + attr(pos, "match.length"), nchar(modelSection[match])))
+					#replace any spaces with periods to create usable unique lc levels
+					lcNum <- gsub("\\s+", "\\.", postPattern, perl=TRUE)					
+				}
+				else lcNum <- sub("^\\s*Latent Class (Pattern )*(\\d+\\s*)+$", "\\2", modelSection[match], perl=TRUE)
+			}
+			else if (match %in% multipleGroupMatches) groupName <- sub("^\\s*Group (\\w+)\\s*$", "\\1", modelSection[match], perl=TRUE)
+			else if (match %in% catLatentMatches) {
+				#the categorical latent variables section is truly "top level"
+				#that is, it starts over in terms of bw/wi and latent classes
+				#multiple groups with cat latent variables is handled by knownclass and results in a latent class
+				#pattern, so don't have to worry about nullifying groupName
+				lcNum <- "Categorical.Latent.Variables"
+				bwWi <- NULL
+			}
+			
+			#if the subsequent top level match is more than 2 lines away, assume that there is a
+			#chunk to be parsed. If it's <= 2, then assume that these are just blank lines
+			chunkToParse <- FALSE
+			if (matchIndex < length(topLevelMatches) && 
+					(topLevelMatches[matchIndex + 1] - topLevelMatches[matchIndex]) > 2) {
+				
+				#extract all text between this match and the next one (add one to omit this header row,
+				#subtract one to exclude the subsequent header row)
+				thisChunk <- modelSection[(match+1):(topLevelMatches[matchIndex+1]-1)]
+				chunkToParse <- TRUE				
+			}
+			else if (matchIndex == length(topLevelMatches)) {
+				#also assume that the text following the last topLevelMatch is also to be parsed
+				thisChunk <- modelSection[(match+1):length(modelSection)]
+				chunkToParse <- TRUE
+								
+			}
+
+			if (chunkToParse == TRUE) {
+				parsedChunk <- parseChunk(thisChunk, oldStandardization, resultType)
+				
+				#only append if there are some rows
+				if (nrow(parsedChunk) > 0) {
+					parsedChunk$LatentClass <- lcNum
+					parsedChunk$BetweenWithin <- bwWi
+					parsedChunk$Group <- groupName
+					bigFrame <- rbind(bigFrame, parsedChunk)
+				}				
+			}
+						
+			matchIndex <- matchIndex + 1
+		}
+		return(bigFrame)
+	}
+	else return(parseChunk(modelSection, oldStandardization, resultType))
   
-  if (length(latentClassMatches) > 0) {
-    #if there are latent class sections, read these one at a time.
-    #otherwise, just parse the whole section and return it
-    
-    bigFrame <- c()
-    catVars <- FALSE
-    for (i in 1:length(latentClassMatches)) {
-      if (i < length(latentClassMatches)) thisChunk <- modelSection[(latentClassMatches[i]+1):(latentClassMatches[i+1]-1)]
-      else if (i == length(latentClassMatches)) {
-        #check for use of categorical latent vars, which have their own section
-        if (length(catPos <- grep("Categorical Latent Variables", modelSection)) > 0) {
-          thisChunk <- modelSection[(latentClassMatches[i]+1):(catPos-1)] 
-          catVars <- TRUE
-        }
-        else thisChunk <- modelSection[(latentClassMatches[i]+1):length(modelSection)]
-      } 
-      
-      parsedChunk <- parseChunk(thisChunk, oldStandardization)
-      lcNum <- sub("^\\s*Latent Class (\\d+)\\s*$", "\\1", modelSection[latentClassMatches[i]], perl=TRUE)
-      parsedChunk$LatentClass <- lcNum
-      bigFrame <- rbind(bigFrame, parsedChunk)
-      
-      if (catVars == TRUE) {
-        catChunk <- modelSection[(catPos+1):length(modelSection)]
-        catParsed <- parseChunk(catChunk, oldStandardization)
-        catParsed$LatentClass <- "CatVars"
-        bigFrame <- rbind(bigFrame, catParsed)
-      }
-    }
-    
-    return(bigFrame)
-  }
-  else if (length(multipleGroupMatches) > 0) {
-    #todo: support multilevel analysis, parse between and within
-    #combine results per group
-    bigFrame <- c()
-    for (i in 1:length(multipleGroupMatches)) {
-      if (i < length(multipleGroupMatches)) thisChunk <- modelSection[(multipleGroupMatches[i]+1):(multipleGroupMatches[i+1]-1)]
-      else if (i == length(multipleGroupMatches)) thisChunk <- modelSection[(multipleGroupMatches[i]+1):length(modelSection)] 
-      
-      parsedChunk <- parseChunk(thisChunk, oldStandardization)
-      
-      groupName <- sub("^\\s*Group (\\w+)\\s*$", "\\1", modelSection[multipleGroupMatches[i]], perl=TRUE)
-      parsedChunk$Group <- groupName
-      bigFrame <- rbind(bigFrame, parsedChunk)
-    }
-    return(bigFrame)
-  }
-  else return(parseChunk(modelSection, oldStandardization))
-  
+	#mg + lc. Results in latent class pattern, not really different from regular latent class matching. See Example 7.21
+	#mg + twolevel. Group is top, bw/wi is 2nd. See Example 9.11
+	#lc + twolevel. Bw/wi is top, lc is 2nd. See Example 10.1. But categorical latent variables is even higher
+
+	#test cases for more complex output: 9.11, 10.1, 7.21, 9.7  
 }
