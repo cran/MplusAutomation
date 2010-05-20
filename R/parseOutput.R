@@ -510,7 +510,7 @@ subsetModelList <- function(modelList, keepCols, dropCols, sortBy) {
   if(!missing(keepCols) && !missing(dropCols)) stop("keepCols and dropCols passed to subsetModelList. You must choose one or the other, but not both.")
   
   #keep only columns specified by keepCols
-  if (length(keepCols) > 0) {
+  if (!missing(keepCols) && length(keepCols) > 0) {
     MplusData <- modelList[, keepCols]
   }
   

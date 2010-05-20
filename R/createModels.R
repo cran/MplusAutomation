@@ -1,4 +1,6 @@
-#todo: enforce use of #iterator syntax in init section for vars with length > 1
+# TODO: enforce use of #iterator syntax in init section for vars with length > 1
+# TODO: Check array tags used in the init and body sections for validity.
+# TODO: Make sure that classify tags accurately interprets all tags and errors if uninterpretable tag.
 
 #note that there's a bit of trickery in interpreting list tags
 #they varnames are stored as only the prefix in the initCollection (no #iterator)
@@ -9,12 +11,7 @@
 #createModels("C:/Users/Michael Hallquist/Documents/Automation_Sandbox/LSPD Covariate Template.txt")
 #system.time(createModels("C:/Users/Michael Hallquist/Documents/Automation_Sandbox/LSPD Template.txt"))
 #createModels("C:/Users/Michael Hallquist/Documents/Automation_Sandbox/LSPD Template New Init.txt")
-
-#need to think more closely about occasions where there are non-contiguous iterators
-#this would break the array matching syntax, which looks up values by numeric position of the iterator
-#but what about iterator with value 1 5 7, and array is c("a", "b", "c"). Then array[3] is missing, but
-#logically represents value 7. Could work around with a named array that takes the value of the iterator
-#names(array) <- as.character(iterator)
+#createModels("C:/Users/Michael Hallquist/Documents/Automation_Sandbox/L2 Multimodel Template No iter.txt")
 
 #need to sort out why is.na is working for lookupValue in replaceBodyTags
 #in particular, why isn't the current value carrying over from the previous looping iteration?
@@ -163,7 +160,7 @@ parseTags <- function(bodySection, initCollection) {
   
  
   #return a three-element list with constituent data frames for init and body tags.
-  return(list(initTags=initMatches, bodyTags=bodyMatches, bodyText=bodySection))  
+	return(list(initTags=initMatches, bodyTags=bodyMatches, bodyText=bodySection))  
   
 }
 
@@ -267,23 +264,27 @@ updateCurrentValues <- function(templateTags, initCollection) {
   #figure out the iterator for each array tag and only select those that are relevant to the current iterator
   initArrayPositions <- which(templateTags$initTags$tagType=="array")
 
-  #use plyr's splitter_a function to divide dataset by row (builds a big list)
-  divideByRow <- splitter_a(templateTags$initTags[initArrayPositions,], 1)
-  
-  #for each element of the list, check for a match with this iterator and return the value of interest
-  #if the array tag is not for this iterator, return the current value unchanged
-  templateTags$initTags$currentValue[initArrayPositions] <- unlist(sapply(divideByRow,
-      function(row) {
-        split <- strsplit(row$tag, split="#", fixed=TRUE)[[1]]
-        if (length(split) != 2) stop("array tag missing iterator: ", row$tag)
-        
-        if (split[2] == initCollection$curIteratorName) {
-          currentValue <- eval(parse(text=paste("initCollection$", split[1], "[", initCollection$curItPos[initCollection$curIteratorDepth], "]", sep="")))
-          if (is.null(currentValue)) stop("When replacing tag: ", row$tag, ", could not find corresponding value.")
-          return(currentValue)
-        }
-        else return(row$currentValue) #return unchanged current value if not this iterator
-      }))
+	#only update values if any array tags are found (generates an error otherwise because of weird format from splitter_a
+	if (length(initArrayPositions) > 0) {
+	
+	  #use plyr's splitter_a function to divide dataset by row (builds a big list)
+	  divideByRow <- splitter_a(templateTags$initTags[initArrayPositions,], 1)
+	  
+	  #for each element of the list, check for a match with this iterator and return the value of interest
+	  #if the array tag is not for this iterator, return the current value unchanged
+	  templateTags$initTags$currentValue[initArrayPositions] <- unlist(sapply(divideByRow,
+	      function(row) {
+	        split <- strsplit(row$tag, split="#", fixed=TRUE)[[1]]
+	        if (length(split) != 2) stop("array tag missing iterator: ", row$tag)
+	        
+	        if (split[2] == initCollection$curIteratorName) {
+	          currentValue <- eval(parse(text=paste("initCollection$", split[1], "[", initCollection$curItPos[initCollection$curIteratorDepth], "]", sep="")))
+	          if (is.null(currentValue)) stop("When replacing tag: ", row$tag, ", could not find corresponding value.")
+	          return(currentValue)
+	        }
+	        else return(row$currentValue) #return unchanged current value if not this iterator
+	      }))
+	}
 
 # for now, we don't use any current values for body tags collection (handled at bottom)
 #  #conduct same process for body tags: locate array tags and update values for this iterator
@@ -659,6 +660,10 @@ processConditionalTags <- function(templateTags, initCollection) {
   #find all conditional tags in the body section and remove them from the templateTags and bodyText pieces...
   
   conditionalTagIndices <- which(templateTags$bodyTags$tagType=="conditional")
+	
+	#return templateTags unharmed if there are no conditional tags (creates error below otherwise)
+	if (length(conditionalTagIndices) == 0) return(templateTags)
+	
   openClose <- ifelse(substr(templateTags$bodyTags$tag[conditionalTagIndices], 1, 1)=="/", "close", "open")  
   allOpen <- conditionalTagIndices[openClose=="open"]
   
@@ -702,7 +707,6 @@ processConditionalTags <- function(templateTags, initCollection) {
       #if conditional false, then remove all tags between conditional tags
       #first, dump all lines in the bodyTags section that fall between elements
       bodyTagsToDrop <- c(bodyTagsToDrop, i:close)
-			
 			
 			#conditional is not true
 			#so dump the tags and all space between
@@ -773,31 +777,42 @@ processConditionalTags <- function(templateTags, initCollection) {
     }
 	}
 	
-	#only keep unique lines
-	bodyTagsToDrop <- sort(unique(bodyTagsToDrop))
-	bodyLinesToDrop <- sort(unique(bodyLinesToDrop))
+
 	#print(bodyLinesToDrop)
 	#print(bodyTagsToDrop)
-	#print("done with loop")
 	
 	#drop all bad body lines
-	templateTags$bodyText <- templateTags$bodyText[bodyLinesToDrop*-1]
-	templateTags$bodyTags <- templateTags$bodyTags[bodyTagsToDrop*-1,]
+
+	#only keep unique bodyTagsToDrop (and sort for clarity in debugging)
+	#hard to imagine that bodyTagsToDrop could be NULL at this point (given the return when no conditional tags above)
+	#but if it were NULL, the bodyTags collection would be dumped by the NULL*-1 evaluation
 	
-	#browser()
-	#need to move up the line markers in the bodyTags collection based on the lines dropped
-	templateTags$bodyTags <- ddply(templateTags$bodyTags, "element", function(subDF) {
-				numMoveUp <- length(which(bodyLinesToDrop < subDF$element[1]))
-				#browser()
-				subDF$element <- subDF$element - numMoveUp
-				return(subDF)
-			})
+	if (!is.null(bodyTagsToDrop)) {
+		bodyTagsToDrop <- sort(unique(bodyTagsToDrop))	
+		templateTags$bodyTags <- templateTags$bodyTags[bodyTagsToDrop*-1,]
+	}
+
+	#need to check whether bodyLinesToDrop is NULL. If it is, then we must not attempt the subset (it will delete the whole character vector)
+	if (!is.null(bodyLinesToDrop)) {
+		#only retain unique bodyLinesToDrop (in theory handled by the "next" code above, but good to be safe) 
+		bodyLinesToDrop <- sort(unique(bodyLinesToDrop))
+		templateTags$bodyText <- templateTags$bodyText[bodyLinesToDrop*-1]
+
+		#need to move up the line markers in the bodyTags collection based on the lines dropped
+		templateTags$bodyTags <- ddply(templateTags$bodyTags, "element", function(subDF) {
+					numMoveUp <- length(which(bodyLinesToDrop < subDF$element[1]))
+					subDF$element <- subDF$element - numMoveUp
+					return(subDF)
+				})
+	}
 	
 	return(templateTags)
 }
 
 
 processInit <- function(initsection) {
+	require(gsubfn)
+	
   #combine multi-line statements by searching for semi-colon
   assignments <- grep("^\\s*.+\\s*=", initsection, perl=TRUE)
 	
@@ -929,4 +944,45 @@ processInit <- function(initsection) {
 	if (is.null(arglist$filename)) stop("No definition provided for the output filename. The filename definition is required.")
   
   return(arglist)
+}
+
+
+#support writing of covariance or means + covariance matrix (future)
+prepareMplusData_Mat <- function(covMatrix, meansMatrix, nobs) {
+	
+}
+
+prepareMplusData <- function(df, filename, keepCols, dropCols) {
+	if (!inherits(df, "data.frame")) stop ("First argument is not a data.frame.")
+	
+	#only allow keep OR drop.
+	if(!missing(keepCols) && !missing(dropCols)) stop("keepCols and dropCols passed to prepareMplusData. You must choose one or the other, but not both.")
+	
+	#keep only columns specified by keepCols
+	if (!missing(keepCols) && length(keepCols) > 0) {
+		df <- df[, keepCols]
+	}
+	
+	#drop columns specified by dropCols
+	if (!missing(dropCols) && length(dropCols) > 0) {
+		#Process vector of columns to drop
+		for (column in dropCols) {
+			df[[column]] <- NULL
+		}
+		
+	}
+	
+	write.table(df, filename, sep="\t", col.names = FALSE, row.names = FALSE, na=".")
+	
+	#variable created for readability
+	variableNames <- paste(names(df), collapse=" ")
+	
+	#short names?
+	#shortNames <- paste(substr(names(df), 1, 8), collapse=" ")
+	
+	cat(c("TITLE: Your title goes here\n",
+					paste("DATA: FILE = \"", filename, "\";\n", sep=""),
+					paste(strwrap(paste("VARIABLE: NAMES = ", variableNames), width=85, exdent=5), collapse="\n"), ";\n\n",
+					"MISSING=.;\n"
+	), sep="")
 }

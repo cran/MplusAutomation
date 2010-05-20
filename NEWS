@@ -1,9 +1,15 @@
+Version 0.3-2
+
+- Added prepareMplusData convenience function, used to export data from R to Mplus.
+- Fixed bug in updateCurrentValues that would stop the createModels pipeline when there were no array tags in the init.
+- Fixed bug in processConditionalTags that would delete the body section when there were no matching tags.
+
 Version 0.3-1
 
 - Removed two browser calls from processInit that were causing pauses in createModels.
 - Reduced console output from createModels (no more "current iterator is" output)
 - Refactored extractModelParameters to handle complex outputs (e.g., multiple groups with twolevel)
-- Refactored extractModelParametres to read standardized estimates from WLS and MUML estimators.
+- Refactored extractModelParameters to read standardized estimates from WLS and MUML estimators.
 
 Version 0.3
 

@@ -24,7 +24,7 @@ columns=fullflexible						%makes character spacing nice
 \setlength{\parskip}{0.3cm}
 \title{MplusAutomation Examples}
 \author{Michael N. Hallquist}
-\date{Package version 0.3-1}
+\date{Package version 0.3-2}
 \maketitle
 \tableofcontents
 \bigskip
@@ -67,6 +67,23 @@ To load the MplusAutomation package so that its functions are available to use,
 type:
 
 \lstinline|library(MplusAutomation)|
+
+\section{Exporting data from R to Mplus}
+In version 0.3-2, a helper function, \lstinline|prepareMplusData|, was added to ease the task
+of transferring data from R to Mplus. Mplus requires that files not have a header row and that the variable
+names be specified within the Mplus input syntax. The \lstinline|prepareMplusData| function converts an
+R \lstinline|data.frame| object (the typical way to represent two-dimensional data in R) to a tab-delimited
+file and it prints the corresponding Mplus syntax to the console. This syntax can then be pasted into the head of
+a new Mplus input file. Here are two basic examples of using the command:
+
+\lstinline|> prepareMplusData(my_data, "C:/Data_Analysis/Prepare Mplus.dat", keepCols=c("id", "item1", "item3", "item6"))|
+
+\lstinline|> prepareMplusData(my_other_data, "C:/Data_Analysis/Prepare Dropped Mplus.dat", dropCols=c("baditem1", "baditem2", "baditem7"))|
+
+The first call requests that only the variables specified by \lstinline|keepCols| be included in the resultant
+Mplus data file. In like manner, the second call requests that all variables except those specified by \lstinline|dropCols|
+by included in the data file. If neither \lstinline|keepCols| nor \lstinline|dropCols| is specified, then the entire
+\lstinline|data.frame| is output.
 
 \section{Running batches of Mplus models}
 A major purpose of the MplusAutomation package is to allow for easy runs of
@@ -236,7 +253,7 @@ summaryStats <- extractModelSummaries("C:/Data_Analysis/Multiclass Models", file
 \end{lstlisting}
 
 \subsection{Listing of summary statistics extracted by extractModelSummaries}
-As of this version of the package (0.3-1), the following summary statistics are automatically extracted,
+As of this version of the package (0.3-2), the following summary statistics are automatically extracted,
 when available:
 
 \begin{itemize}

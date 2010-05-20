@@ -6,4 +6,4 @@ import(relimp)
 export(runModels, runModels_Interactive, extractModelSummaries, 
 	extractModelParameters, getSavedata_Data, getSavedata_Fileinfo,
 	showSummaryTable, LatexSummaryTable, HTMLSummaryTable,
-	createModels)
+	createModels, prepareMplusData)
