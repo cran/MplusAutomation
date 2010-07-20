@@ -8,7 +8,7 @@ This function runs a group of Mplus models (.inp files) located within a
 single directory or nested within subdirectories.
 }
 \usage{runModels(directory = getwd(), recursive = FALSE, showOutput = FALSE, 
-	replaceOutfile = "always", logFile = "Mplus Run Models.log")}
+	replaceOutfile = "always", logFile = "Mplus Run Models.log", Mplus_command="Mplus")}
 \arguments{
   \item{directory}{the directory containing Mplus input files (.inp) to run.
   	Defaults to the current working directory. Example: "C:/Users/Michael/Mplus Runs"
@@ -26,6 +26,10 @@ single directory or nested within subdirectories.
   \item{logFile}{optional. If non-null, specifies a file (and optionally, directory)
   	that records the settings passed into the function and the models run (or skipped)
   	during the run.}
+  \item{Mplus_command}{optional. N.B.: No need to pass this parameter for most users (has intelligent
+  	defaults). Allows the user to specify the name/path of the Mplus executable to be used for
+  	running models. This covers situations where Mplus is not in the system's path,
+  	or where one wants to test different versions of the Mplus program.}
 }
 \value{
 None. Function is used for its side effects (running models).
@@ -38,10 +42,10 @@ None. Function is used for its side effects (running models).
 \seealso{
 	\code{\link{runModels_Interactive}}
 }
-%\examples{
-%runModels("C:/Users/Michael/Mplus Runs", recursive=TRUE, showOutput=TRUE,
-%	replaceOutfile="modifiedDate", logFile="MH_RunLog.txt")
-%}
-% Add one or more standard keywords, see file 'KEYWORDS' in the
-% R documentation directory.
+\examples{
+\dontrun{runModels("C:/Users/Michael/Mplus Runs", recursive=TRUE, showOutput=TRUE,
+	replaceOutfile="modifiedDate", logFile="MH_RunLog.txt", 
+	Mplus_command="C:\\Users\\Michael\\Mplus Install\\Mplus51.exe")}
+}
+
 \keyword{interface}

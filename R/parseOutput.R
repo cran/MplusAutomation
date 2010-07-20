@@ -166,7 +166,7 @@ modelParams <- function(outfile, filename, extract=c("Title", "LL", "BIC", "AIC"
   }
   
   #convert keyword names into full strings for matching
-  extractDetailed <- sapply(extract, expandField, USE.NAMES=F)
+  extractDetailed <- sapply(extract, expandField, USE.NAMES=FALSE)
   
   #preallocates list
   arglist = vector("list", length(extract))  
@@ -180,12 +180,10 @@ modelParams <- function(outfile, filename, extract=c("Title", "LL", "BIC", "AIC"
   
   #use the short keywords as the variable names	
   names(arglist) <- extract
-  
-  if ("LL" %in% extract) {
-    if (is.na(arglist$LL)) {
-      warning(paste("Model missing LL value. Possibly a failed run or using a non-likelihood estimator (e.g., WLSMV).")) # Dropping from data.\n  ", filename, sep=""))
-      #return(NULL)
-    }
+
+	#Only warn about missing LL for ML-based estimators
+  if ("LL" %in% extract && !is.na(arglist$Estimator) && arglist$Estimator %in% c("ML", "MLR", "MLM", "MLMV", "MLF") && is.na(arglist$LL)) {
+		warning("Model missing LL value, despite use of ML-based estimator. Likely a failed run.\n  ", filename)
   }
   
   #handle AICC calculation, requires AIC, Parameters, and observations
@@ -337,12 +335,56 @@ modelParams <- function(outfile, filename, extract=c("Title", "LL", "BIC", "AIC"
     }
   }
   
-  #arglist$InputInstructions <- as.character(outfile[(startInput+1):(endInput-1)])
-  arglist$InputInstructions <- paste((outfile[(startInput+1):(endInput-1)]), collapse="\n")
+  #for now, skip including input instructions in the returned data.frame. Makes the output too cluttered.
+  #arglist$InputInstructions <- paste((outfile[(startInput+1):(endInput-1)]), collapse="\n")
   arglist$Filename <- filename
       
   return(as.data.frame(arglist, stringsAsFactors=FALSE))
-} 
+}
+
+#could this also be used by runModels to locate input files?
+#seems like that function would do well to allow for directories and single files, too.
+
+getOutFileList <- function(target, recursive=FALSE, filefilter) {
+	#This is a helper function used by extractModelSummaries and extractModelParameters.
+	#It determines whether the target is a single file or a directory.
+	#If it is a directory, all .out files are returned (perhaps recursively)
+	#It also permits the files to be filtered using a certain regular expression.
+	
+	#determine whether target is a file or a directory
+	if (file.exists(target)) {
+		if (file.info(target)$isdir == TRUE) {
+			
+			#obtain list of all files in the specified directory
+			filelist <- list.files(path=target, recursive=recursive, full.names=TRUE)
+			
+			#retain only .out files
+			outfiles <- filelist[grep(".*\\.out$", filelist, ignore.case=TRUE)]
+			
+			if (!missing(filefilter)) {
+				dropOutExtensions <- sapply(outfiles, function(x) {
+							if (nchar(x) >= 4) return(tolower(substr(x, 1, (nchar(x)-4))))
+						})
+				outfiles <- outfiles[grep(paste(".*", filefilter, ".*", sep=""), dropOutExtensions, ignore.case=TRUE, perl=TRUE)]
+			}      
+		}
+		else {
+			#ensure that target is a single output file.
+			if (nchar(target) >= 4 && !substr(target, nchar(target) - 3, nchar(target)) == ".out") stop("Specified target is not an output file.\n  Target:", target)
+			
+			#outfiles collection is just one file
+			outfiles <- target      
+		}
+	}
+	else stop("Specified target does not exist.\n  Target: ", target)
+	
+	if (length(outfiles) == 0) { 
+		warning("No output files detected in this directory.")
+		return(NULL)
+	}
+	
+	return(outfiles)
+}
 
 extractModelSummaries <- function(target=getwd(), recursive=FALSE, filefilter) {
 #extractModelSummaries(target, recursive=FALSE)
@@ -359,45 +401,13 @@ extractModelSummaries <- function(target=getwd(), recursive=FALSE, filefilter) {
 
   curdir <- getwd()
   
-  #determine whether target is a file or a directory
-  if (file.exists(target)) {
-    if (file.info(target)$isdir == TRUE) {
-      #switch to target directory
-      setwd(target)
-      
-      #obtain list of all files in the specified directory
-      filelist <- list.files(recursive=recursive)
-      
-      #retain only .out files
-      outfiles <- filelist[grep(".*\\.out", filelist, ignore.case=TRUE)]
-      
-      if (!missing(filefilter)) {
-        dropOutExtensions <- sapply(outfiles, function(x) {
-              if (nchar(x) >= 4) return(tolower(substr(x, 1, (nchar(x)-4))))
-            })
-        outfiles <- outfiles[grep(paste(".*", filefilter, ".*", sep=""), dropOutExtensions, ignore.case=TRUE, perl=TRUE)]
-      }      
-    }
-    else {
-      #ensure that target is a single output file.
-      if (nchar(target) >= 4 && !substr(target, nchar(target) - 3, nchar(target)) == ".out") stop("Specified target is not an output file.\n  Target:", target)
-      
-      #outfiles collection is just one file
-      outfiles <- target      
-    }
-  }
-  else stop("Specified target does not exist.\n  Target: ", target)
-  
-  if (length(outfiles) == 0) { 
-    warning("No output files detected in this directory.")
-    return(NULL)
-  }
-  
+	outfiles <- getOutFileList(target, recursive, filefilter)
+	
   details <- c()
   
   #for each output file, use the modelParams function to extract relevant data
   #note that modelParams returns data as a list
-  #rbind creates an array of lists by appending each modelParams retun value
+  #rbind creates an array of lists by appending each modelParams return value
   for (i in 1:length(outfiles)) {
     #read the file
     readfile <- scan(outfiles[i], what="character", sep="\n", strip.white=TRUE, blank.lines.skip=FALSE)
@@ -583,8 +593,11 @@ LatexSummaryTable <- function(modelList, keepCols, dropCols, sortBy, label=NULL,
   return(xtable(MplusData, label=label, caption=caption))
 }
 
+#removed input instructions from routine extraction
+#dropCols=c("InputInstructions", "Observations")
+
 createTable <- function(modelList, filename=file.path(getwd(), "Model Comparison.html"),
-  sortby="AICC", display=TRUE, latex=FALSE, dropCols=c("InputInstructions", "Observations"), label=NULL) {
+  sortby="AICC", display=TRUE, latex=FALSE, dropCols=c("Observations"), label=NULL) {
 #createTable(directory, recursive=FALSE)
 #
 #   modelList: list of model details returned by extractModelSummaries.
@@ -649,13 +662,14 @@ createTable <- function(modelList, filename=file.path(getwd(), "Model Comparison
   
 }
 
-#helper function for extractModelParameters. Used to parse each chunk of output (will be many if latent classes, multiple groups are used)
-parseChunk <- function(thisChunk, oldStandardization, resultType) {
-	#note that this regexp includes leading and trailing spaces in the match (potentially problematic for substr operations)
-	#but nice to have to ensure that the lines are otherwise clear
-	#handled by string trimming below in ddply.
-	#scratch that.... strip.white above ensures that no leading or trailing spaces.
-	matches <- gregexpr("^((Means|Thresholds|Intercepts|Variances|Residual Variances)|([\\w_\\d+\\.]+\\s+(BY|WITH|ON|\\|)))$", thisChunk, perl=TRUE)
+#Helper function for extractModelParameters. Used to parse each subsection of output within a given file and given results section (e.g., stdyx section) 
+#There will be many chunks if latent classes, multiple groups, multilevel features are used.
+extractParameters_1chunk <- function(thisChunk, columnNames) {
+	if (missing(thisChunk) || is.na(thisChunk) || is.null(thisChunk)) stop("Missing chunk to parse.")
+	if (missing(columnNames) || is.na(columnNames) || is.null(columnNames)) stop("Missing column names for chunk.")
+	
+	#okay to match beginning and end of line because strip.white used in scan
+	matches <- gregexpr("^((Means|Thresholds|Intercepts|Variances|Residual Variances|New/Additional Parameters)|([\\w_\\d+\\.#]+\\s+(BY|WITH|ON|\\|)))$", thisChunk, perl=TRUE)
 	
 	#more readable (than above) using ldply from plyr
 	convertMatches <- ldply(matches, function(row) data.frame(start=row, end=row+attr(row, "match.length")-1))
@@ -673,10 +687,10 @@ parseChunk <- function(thisChunk, oldStandardization, resultType) {
 				match <- substr(thisChunk[row$startline], row$start, row$end)
 				
 				#check for keyword
-				if (match %in% c("Means", "Thresholds", "Intercepts", "Variances", "Residual Variances")) {
+				if (match %in% c("Means", "Thresholds", "Intercepts", "Variances", "Residual Variances", "New/Additional Parameters")) {
 					return(data.frame(startline=row$startline, keyword=make.names(match), varname=NA_character_, operator=NA_character_))
 				}
-				else if (length(variable <- strapply(match, "^\\s*([\\w_\\d+\\.]+)\\s+(BY|WITH|ON|\\|)\\s*$", c, perl=TRUE)[[1]]) > 0) {
+				else if (length(variable <- strapply(match, "^\\s*([\\w_\\d+\\.#]+)\\s+(BY|WITH|ON|\\|)\\s*$", c, perl=TRUE)[[1]]) > 0) {
 					return(data.frame(startline=row$startline, keyword=NA_character_, varname=variable[1], operator=variable[2]))
 				}
 				else stop("failure to match keyword: ", match)
@@ -691,8 +705,9 @@ parseChunk <- function(thisChunk, oldStandardization, resultType) {
 	#		       13    <NA>      FW       ON      16
 	
 	for (i in 1:nrow(convertMatches)) {
+		#define the end line for this match as the start of next match - 1 
 		if (i < nrow(convertMatches)) convertMatches[i,"endline"] <- convertMatches[i+1,"startline"]-1
-		else convertMatches[i,"endline"] <- length(thisChunk)
+		else convertMatches[i,"endline"] <- length(thisChunk) # or if last chunk in the section, just define as length
 		
 		#need +1 to eliminate header row from params 
 		paramsToParse <- thisChunk[(convertMatches[i, "startline"]+1):convertMatches[i, "endline"]]
@@ -705,30 +720,32 @@ parseChunk <- function(thisChunk, oldStandardization, resultType) {
 		#"U4                 0.656      0.037     17.585      0.000"
 		
 		#define the var title outside of the chunk processing because it will apply to all rows
-		if (is.na(convertMatches[i,]$keyword)) varTitle <- paste(convertMatches[i,"varname"], ".", convertMatches[i,]$operator, sep="")
+		if (is.na(convertMatches[i,]$keyword)) varTitle <- paste(convertMatches[i,"varname"], ".", convertMatches[i,"operator"], sep="")
 		else varTitle <- as.character(convertMatches[i,"keyword"])
 		
 		splitParams <- strsplit(paramsToParse, "\\s+", perl=TRUE)
+
+		#rbind the split list as a data.frame 
+		parsedParams <- data.frame(do.call("rbind", splitParams), stringsAsFactors=FALSE)
 		
-		parsedParams <- ldply(splitParams, function(row) {
-					#assume that length 5 corresponds to varname, param, se, param/se, and p-val
-					if (length(row) == 5) {
-						return(data.frame(paramHeader=varTitle, param=row[1], est=as.numeric(row[2]), 
-										se=as.numeric(row[3]), est_se=as.numeric(row[4]), pval=as.numeric(row[5]), stringsAsFactors=FALSE))
-					}
-					#assume that length 3 corresponds to varname, stdyx estimate, std estimate (applies to wls estimators with covariates and MUML (p. 643 of User's Guide)
-					else if (length(row) == 3) {
-						if (resultType=="stdyx") return(data.frame(paramHeader=varTitle, param=row[1], est=as.numeric(row[2]), stringsAsFactors=FALSE))
-						else if (resultType == "std") return(data.frame(paramHeader=varTitle, param=row[1], est=as.numeric(row[3]), stringsAsFactors=FALSE))
-					}
-					else if (length(row) == 4) {
-						if (resultType=="stdyx") return(data.frame(paramHeader=varTitle, param=row[1], est=as.numeric(row[2]), stringsAsFactors=FALSE))
-						else if (resultType=="stdy") return(data.frame(paramHeader=varTitle, param=row[1], est=as.numeric(row[3]), stringsAsFactors=FALSE))
-						else if (resultType == "std") return(data.frame(paramHeader=varTitle, param=row[1], est=as.numeric(row[4]), stringsAsFactors=FALSE))
-					}
-					#warn if non-zero length. row of length 0 will be returned for empty strings
-					else if (length(row) != 0) warning("Unknown parameters encountered in model results. Skipping.\n  Row: ", row)
-				})
+		#use the column names detected in extractParameters_1section
+		names(parsedParams) <- columnNames
+		
+		#for each column, convert to numeric if it is. Otherwise, return as character
+		parsedParams <- data.frame(lapply(parsedParams, function(col) {
+							#a bit convoluted, but we want to test for a purely numeric string by using a regexp that only allows numbers, periods, and the minus sign
+							#then sum the number of matches > 0 (i.e., where a number was found).
+							#if the sum is the same as the length of the column, then all elements are purely numeric.
+
+							if (sum(sapply(gregexpr("^[\\d\\.-]+$", col, perl=TRUE), "[", 1) > 0) == length(col)) return(as.numeric(col))
+							else return(as.character(col))
+						}), stringsAsFactors=FALSE)
+		
+		#add the paramHeader to the data.frame
+		parsedParams$paramHeader <- varTitle
+
+		#put the paramHeader at the front of the data.frame columns
+		parsedParams <- parsedParams[,c("paramHeader", columnNames)]
 		
 		#add the current chunk to the overall data.frame
 		comboFrame <- rbind(comboFrame, parsedParams)
@@ -740,96 +757,95 @@ parseChunk <- function(thisChunk, oldStandardization, resultType) {
 	
 }
 
-
-extractModelParameters <- function(outfile, resultType="raw") {
-  require(gsubfn)
-  require(plyr)
-  readfile <- scan(outfile, what="character", sep="\n", strip.white=TRUE, blank.lines.skip=FALSE)
-  
-  #locate the start of the model results section
-  #note that this won't work for EFA... but do I care? :)
-  if (resultType=="raw") beginModel <- grep("^MODEL RESULTS$", readfile)
-  else if (resultType=="stdyx") beginModel <- grep("^STDYX Standardization$", readfile)
-  else if (resultType=="stdy") beginModel <- grep("^STDY Standardization$", readfile)
-  else if (resultType=="std") beginModel <- grep("^STD Standardization$", readfile)
-  else stop("Unsupported result type. Must be one of: \"raw\", \"stdyx\", \"stdy\", \"std\"")
-  
-  #In previous Mplus versions, std estimates were one per column. (implementation in progress)
-  oldStandardization <- FALSE
-  if (length(beginModel) < 1 && resultType %in% c("stdyx", "stdy", "std")) {
-    beginModel <- grep("^STANDARDIZED MODEL RESULTS$", readfile)
-    oldStandardization <- TRUE
-  }
-  
-  #the end of the model results section is demarcated by two blank lines
-	#this is not a reliable marker!! See Example 9.7. Breaks down with twolevel model.
-	#maybe look for the next line that has no spaces at the beginning, but is all caps?
-  endModel <- 0
-  for (row in beginModel+1:length(readfile)) {
-    #note short circuit && ensures that we will not go outside subscript bounds for readfile
-    if (row < length(readfile) && readfile[row] == "" && readfile[row+1] == "") {
-      #given problems with example 9.7, also test that row+2 is a line of all capital letters
-			#start by deleting all spaces
-			capsLine <- gsub("\\s+", "", readfile[row+2])
+extractParameters_1section <- function(modelSection, sectionName) {
+	#extract model parameters for a given model results section. A section contains complete output for all parameters of a given type
+	#(unstandardized, stdyx, stdy, or std) for a single file.
+	#section name is used to name the list element of the returned list
+	
+	#helper function to detect model results columns
+	detectColumnNames <- function(modelSection) {
+		detectionFinished <- FALSE
+		line <- 1
+		while(detectionFinished == FALSE) {
+			thisLine <- strsplit(modelSection[line], "\\s+", perl=TRUE)[[1]]
+			if (line < length(modelSection)) nextLine <- strsplit(modelSection[line+1], "\\s+", perl=TRUE)[[1]]
+			else nextLine <- NA_character_
 			
-			#now search for any non-capital letter (also allow for hyphens)
-			hasNonCapitals <- regexpr("[^A-Z-]", capsLine, perl=TRUE) #will be -1 if all caps
-			
-			#if the next line is not all capitals, then continue reading output
-			#even this could choke on a line like FACTOR BY
-			if (hasNonCapitals < 0) {
-				endModel <- row
-      	break
-			}
-    }
-  }
-  #should be one exact match for beginModel and non-zero endModel
-  stopifnot(length(beginModel)==1, endModel > 0)
-  
-  #these are here to warn for non-standard models (so that the code can be made more flexible in the future)
-  #may need to tweak for Latent Class models
-  #if (!readfile[beginModel+1]=="") warning("no blank line following MODEL RESULTS")
-  #if (!readfile[beginModel+2]=="Two-Tailed") warning("model results + 2 != two-tailed")
-  #if (!regexpr("^\\s*Estimate\\s+S\\.E\\.\\s+Est\\./S\\.E\\.\\s+P-Value\\s*$",readfile[beginModel+3],perl=TRUE) > 0) {
-  #  warning("model results + 3 is not the estimate s.e. line")
-  #}
-  
-  #select the model section for further processing (note that the + 1 drops the blank line after the "MODEL RESULTS"
-  #and drops both blank lines at the bottom
-  modelSection <- readfile[(beginModel+1):(endModel-1)]
- 
-	#more flexible handling of top-level model results dividers (which are often nested)
-	#At this point, handle 1) multiple groups: Group XYZ, 2) latent classes: Latent Class xyz, 3) two-level structure: Between Level, Within Level
-	#4) categorical latent variables: Categorical Latent Variables
+			#detect common Mplus output formats
+			#not especially flexible code, but hard to perfect it when names span two lines and headers have changed over versions
+			#Would be ideal to build element-by-element, but not feasible given ambiguity across versions and two-line headers
 
-	#may need to avoid whitespace stripping from scan to ensure that we capture top-level tags, which lack a space
-	#can avoid this if the "two blank lines" rule holds... If Mplus folks fix the formatting bug of Example 9.7
+			#Bayesian (ESTIMATOR=BAYES) 6-column output 
+			if (identical(thisLine, c("Posterior", "One-Tailed", "95%", "C.I.")) &&
+					identical (nextLine, c("Estimate", "S.D.", "P-Value", "Lower", "2.5%", "Upper", "2.5%")))
+				varNames <- c("param", "est", "posterior_sd", "pval", "lower_2.5ci", "upper_2.5ci")
+			
+			#Usual five-column output that applies to most unstandardized and standardized sections in Mplus 5 and later
+			else if (identical(thisLine, c("Two-Tailed")) && 
+					identical(nextLine, c("Estimate", "S.E.", "Est./S.E.", "P-Value")))
+				varNames <- c("param", "est", "se", "est_se", "pval")
+			
+			#Old 5-column standardized output from Mplus 4.2
+			else if (identical(thisLine, c("Estimates", "S.E.", "Est./S.E.", "Std", "StdYX")))
+				#in cases where combined raw and std, should split out results into list form
+				varNames <- c("param", "est", "se", "est_se", "std", "stdyx")
+			
+			#Old 3-column output from Mplus 4.2
+			else if (identical(thisLine, c("Estimates", "S.E.", "Est./S.E.")))
+				#in cases where combined raw and std, should split out results into list form
+				varNames <- c("param", "est", "se", "est_se")
+					
+			#MUML estimator or WLS estimators with covariates do not allow std. errors or StdY for standardized output
+			#run 9.1b with MUML and OUTPUT:STANDARDIZED
+			else if (identical(thisLine, c("StdYX", "Std")) && identical (nextLine, c("Estimate", "Estimate")))
+				varNames <- c("param", "stdyx", "std")
+			
+			line <- line + 1
+			if (exists("varNames"))
+				detectionFinished <- TRUE
+			else if (line > length(modelSection))
+				stop("Unable to determine column names for model results section.")
+			
+		}
+		return(varNames)
+		
+	}
+	
+	columnNames <- detectColumnNames(modelSection)
+	
+	#Detect model section dividers
+	#These include: 1) multiple groups: Group XYZ
+	#  2) latent classes: Latent Class XYZ
+	#  3) two-level structure: Between Level, Within Level
+	#  4) categorical latent variables: Categorical Latent Variables
+
+	allSectionParameters <- c() #will hold extracted params for all sections
 
 	betweenWithinMatches <- grep("^\\s*(Between|Within) Level\\s*$", modelSection, ignore.case=TRUE, perl=TRUE)
-  latentClassMatches <- grep("^\\s*Latent Class (Pattern )*(\\d+\\s*)+$", modelSection, ignore.case=TRUE, perl=TRUE)
-  multipleGroupMatches <- grep("^\\s*Group \\w+\\s*$", modelSection, ignore.case=TRUE, perl=TRUE)
+	latentClassMatches <- grep("^\\s*Latent Class (Pattern )*(\\d+\\s*)+$", modelSection, ignore.case=TRUE, perl=TRUE)
+	multipleGroupMatches <- grep("^\\s*Group \\w+\\s*$", modelSection, ignore.case=TRUE, perl=TRUE)
 	catLatentMatches <- grep("^\\s*Categorical Latent Variables\\s*$", modelSection, ignore.case=TRUE)
 	
 	topLevelMatches <- sort(c(betweenWithinMatches, latentClassMatches, multipleGroupMatches, catLatentMatches))
-
+	
 	if (length(topLevelMatches) > 0) {
-		bigFrame <- c()
+
 		lcNum <- NULL
 		bwWi <- NULL
 		groupName <- NULL
 		
 		matchIndex <- 1
 		for (match in topLevelMatches) {
-			#browser()
+
 			if (match %in% betweenWithinMatches) bwWi <- sub("^\\s*(Between|Within) Level\\s*$", "\\1", modelSection[match], perl=TRUE)
 			else if (match %in% latentClassMatches) {
-				if (pos <- regexpr("Pattern", modelSection[match], ignore.case=TRUE) > 0) {
+				if ((pos <- regexpr("Pattern", modelSection[match], ignore.case=TRUE)) > 0) {
 					#need to pull out and concatenate all numerical values following pattern
 					postPattern <- trimSpace(substr(modelSection[match], pos + attr(pos, "match.length"), nchar(modelSection[match])))
 					#replace any spaces with periods to create usable unique lc levels
 					lcNum <- gsub("\\s+", "\\.", postPattern, perl=TRUE)					
 				}
-				else lcNum <- sub("^\\s*Latent Class (Pattern )*(\\d+\\s*)+$", "\\2", modelSection[match], perl=TRUE)
+				else lcNum <- sub("^\\s*Latent Class\\s+(\\d+)\\s*$", "\\1", modelSection[match], perl=TRUE)
 			}
 			else if (match %in% multipleGroupMatches) groupName <- sub("^\\s*Group (\\w+)\\s*$", "\\1", modelSection[match], perl=TRUE)
 			else if (match %in% catLatentMatches) {
@@ -856,30 +872,322 @@ extractModelParameters <- function(outfile, resultType="raw") {
 				#also assume that the text following the last topLevelMatch is also to be parsed
 				thisChunk <- modelSection[(match+1):length(modelSection)]
 				chunkToParse <- TRUE
-								
+				
 			}
-
+			
 			if (chunkToParse == TRUE) {
-				parsedChunk <- parseChunk(thisChunk, oldStandardization, resultType)
+				parsedChunk <- extractParameters_1chunk(thisChunk, columnNames)
 				
 				#only append if there are some rows
 				if (nrow(parsedChunk) > 0) {
 					parsedChunk$LatentClass <- lcNum
 					parsedChunk$BetweenWithin <- bwWi
 					parsedChunk$Group <- groupName
-					bigFrame <- rbind(bigFrame, parsedChunk)
+					allSectionParameters <- rbind(allSectionParameters, parsedChunk)
 				}				
 			}
-						
+			
 			matchIndex <- matchIndex + 1
 		}
-		return(bigFrame)
+		
+
 	}
-	else return(parseChunk(modelSection, oldStandardization, resultType))
-  
+	else allSectionParameters <- extractParameters_1chunk(modelSection, columnNames) #just one model section
+
+	#if any std variable is one of the returned columns, we are dealing with an old-style combined results section (i.e.,
+	#standardized results are not divided into their own sections, as with newer output).
+	#newer output would just have the params, est, etc.
+	#for consistency with newer output, we need to parse these into individual list elements and remove from unstandardized output.
+	#this is a tricky maneuver in some ways because the function may return a data.frame or a list... will have to be handled by the caller
+	oldStyleColumns <- c("stdyx", "stdy", "std")
+	listParameters <- list()
+	
+	if (any(oldStyleColumns %in% names(allSectionParameters))) {
+
+		#for each standardized column present, reprocess into its own df, append to list, and remove from the df
+		for (colName in oldStyleColumns[oldStyleColumns %in% names(allSectionParameters)]) {
+			listParameters[[paste(colName, ".standardized", sep="")]] <- data.frame(paramHeader=allSectionParameters$paramHeader,
+					param=allSectionParameters$param, est=allSectionParameters[,colName], stringsAsFactors=FALSE)
+			
+			
+			#also include latent class, multiple groups and bw/wi in the output
+			if ("LatentClass" %in% names(allSectionParameters)) listParameters[[paste(colName, ".standardized", sep="")]]$LatentClass <- allSectionParameters$LatentClass
+			if ("Group" %in% names(allSectionParameters)) listParameters[[paste(colName, ".standardized", sep="")]]$Group <- allSectionParameters$Group
+			if ("BetweenWithin" %in% names(allSectionParameters)) listParameters[[paste(colName, ".standardized", sep="")]]$BetweenWithin <- allSectionParameters$BetweenWithin
+			
+			allSectionParameters[[colName]] <- NULL #remove from unstandardized output
+			
+			
+		}
+		listParameters[[sectionName]] <- allSectionParameters #now that standardized removed, add remainder to the list under appropriate name
+	}
+	else {
+		#if output only contains results of one section type (stdyx, unstandardized, etc.),
+		#then return a list with a single element, which will be appended to other elements by the extractParameters_1file function
+		#copy data.frame into the appropriate list element to be returned.
+		listParameters[[sectionName]] <- allSectionParameters
+		
+	} 
+
+	return(listParameters)
+	
+	#a few examples of files to parse
 	#mg + lc. Results in latent class pattern, not really different from regular latent class matching. See Example 7.21
 	#mg + twolevel. Group is top, bw/wi is 2nd. See Example 9.11
 	#lc + twolevel. Bw/wi is top, lc is 2nd. See Example 10.1. But categorical latent variables is even higher
+	#test cases for more complex output: 7.21, 9.7, 9.11, 10.1   
+}
+	
 
-	#test cases for more complex output: 9.11, 10.1, 7.21, 9.7  
+extractParameters_1file <- function(filename, dropDimensions, resultType) {
+	require(gsubfn)
+	require(plyr)
+	outfiletext <- scan(filename, what="character", sep="\n", strip.white=TRUE, blank.lines.skip=FALSE)
+	
+	if (length(grep("TYPE\\s+(IS|=|ARE)\\s+((MIXTURE|TWOLEVEL)\\s+)*EFA\\s+\\d+", outfiletext, ignore.case=TRUE, perl=TRUE)) > 0) {
+		warning(paste("EFA, MIXTURE EFA, and TWOLEVEL EFA files are not currently supported by extractModelParameters.\n  Skipping outfile: ", filename, sep=""))
+		return(NULL) #skip file
+	}
+		
+	grabResultsSection <- function(sectionHeader, outfiletext) {
+		#helper sub-function to extract a model section given a certain header.
+		#the logic here is pretty convoluted. In general, Mplus results sections end with two blank lines
+		#but there are problematic exceptions, like Example 9.7. Bengt has said that this formatting error will be fixed
+		#in the next edition, but I've gone ahead and implemented a more nuanced (but excessively complicated) logic.
+		
+		#the end of the model results section is demarcated by two blank lines
+		#this is not a reliable marker!! See Example 9.7. Breaks down with twolevel model.
+		
+		beginSection <- grep(sectionHeader, outfiletext)
+		
+		#if section header cannot be found, then bail out
+		if (length(beginSection) == 0) return(NULL)
+				
+		endSection <- 0
+		for (row in beginSection+1:length(outfiletext)) {
+			#note short circuit && ensures that we will not go outside subscript bounds for outfiletext
+			#check for current line and line+1 blank (two consecutive blank lines)
+			if (row < length(outfiletext) && outfiletext[row] == "" && outfiletext[row+1] == "") {
+				#given problems with example 9.7, also test that row+2 is a line of all capital letters
+				#start by deleting all spaces
+				capsLine <- gsub("\\s+", "", outfiletext[row+2], perl=TRUE)
+				
+				#now search for any non-capital letter (also allow for hyphens for R-SQUARE and numbers for TECHNICAL 1 OUTPUT)
+				hasLowercase <- regexpr("[^0-9A-Z-]", capsLine, perl=TRUE) #will be -1 if all caps
+				
+				#actually, the caps check is breaking down for standardized output.
+				#for stdyx, the stdy section is next, but begins with "STDY Standardization" (not all caps).
+				#adding exception to logic below... getting kind of kludgy, but Mplus output is just not consistent.
+				
+				#if the next line is not all capitals, then continue reading output
+				#even this could choke on a line like FACTOR BY, but that shouldn't happen because the logic requires two blank lines above
+				if (hasLowercase < 0 || regexpr("STD[YX]*Standardization", capsLine, perl=TRUE) > 0) {
+					endSection <- row
+					break
+				}
+			}
+		}
+		
+		if (!endSection > 0) stop("Could not locate results section end for header:\n  ", outfiletext[beginSection])
+		
+		modelSection <- outfiletext[(beginSection+1):(endSection-1)]
+		
+		return(modelSection)
+		
+	}
+	
+	#copy elements of append into target. note that data.frames inherit list, so could be wonky if append is a data.frame (shouldn't happen here)
+	appendListElements <- function(target, append) {
+		if (!is.list(target)) stop("target is not a list.")
+		if (!is.list(append)) stop("append is not a list.")
+		
+		for (elementName in names(append)) {
+			if (!is.null(target[[elementName]])) warning("Element is already present in target list: ", elementName)
+			target[[elementName]] <- append[[elementName]]
+		}
+		
+		return(target)
+	}
+	
+	allSections <- list() #holds parameters for all identified sections
+
+	unstandardizedSection <- grabResultsSection("^MODEL RESULTS$", outfiletext)
+	if (!is.null(unstandardizedSection)) allSections <- appendListElements(allSections, extractParameters_1section(unstandardizedSection, "unstandardized"))
+	
+	beginStandardizedSection <- grep("^STANDARDIZED MODEL RESULTS$", outfiletext)
+	
+	if (length(beginStandardizedSection) > 0) {
+		#check to see if standardized results are divided by standardization type (new format)
+		remainder <- outfiletext[(beginStandardizedSection+1):length(outfiletext)]
+		
+		#could shift extractParameters_1section to receive the section header and pull out text there. Might streamline this.
+		stdYXSection <- grabResultsSection("^STDYX Standardization$", remainder)
+		if (!is.null(stdYXSection)) allSections <- appendListElements(allSections, extractParameters_1section(stdYXSection, "stdyx.standardized"))
+		
+		stdYSection <- grabResultsSection("^STDY Standardization$", remainder)
+		if (!is.null(stdYSection)) allSections <- appendListElements(allSections, extractParameters_1section(stdYSection, "stdy.standardized"))
+		
+		stdSection <- grabResultsSection("^STD Standardization$", remainder)
+		if (!is.null(stdSection)) allSections <- appendListElements(allSections, extractParameters_1section(stdSection, "std.standardized"))
+		
+		#if all individual standardized sections are absent, but the standardized section is present, must be old-style
+		#combined standardized section (affects WLS and MUML, too). Extract and process old section. 
+		if (all(is.null(stdYXSection), is.null(stdYSection), is.null(stdSection))) {
+			oldStdSection <- grabResultsSection("^STANDARDIZED MODEL RESULTS$", outfiletext)
+			if (!is.null(oldStdSection)) allSections <- appendListElements(allSections, extractParameters_1section(oldStdSection, "standardized")) #this section name should never survive the call
+		}
+	
+	}
+	
+	listOrder <- c()
+	if ("unstandardized" %in% names(allSections)) listOrder <- c(listOrder, "unstandardized")
+	if ("stdyx.standardized" %in% names(allSections)) listOrder <- c(listOrder, "stdyx.standardized")
+	if ("stdy.standardized" %in% names(allSections)) listOrder <- c(listOrder, "stdy.standardized")
+	if ("std.standardized" %in% names(allSections)) listOrder <- c(listOrder, "std.standardized")
+	
+	#only re-order if out of order
+	if(!identical(names(allSections), listOrder)) allSections <- allSections[listOrder] 
+
+	#this needs to be here not to conflict with the drop to 1 element logic above.
+	#if resultType passed (deprecated), only return the appropriate element
+	#this is inefficient because all sections will be parsed, but it's deprecated, so no worries.
+	if (!missing(resultType)) {
+		warning(paste("resultType is deprecated and will be removed in a future version.\n  ",
+						"extractModelParameters now returns a list containing unstandardized and standardized parameters, where available.\n  ",
+						"For now, resultType is respected, so a data.frame will be returned."))
+
+		oldNewTranslation <- switch(EXPR=resultType,
+				"raw"="unstandardized",
+				"stdyx"="stdyx.standardized",
+				"stdy"="stdy.standardized",
+				"std"="std.standardized")
+		
+		allSections <- allSections[[oldNewTranslation]]
+	}
+		
+	return(allSections)
+}
+
+extractModelParameters <- function(target=getwd(), recursive=FALSE, filefilter, dropDimensions=FALSE, resultType) {
+
+	#function tree (top to bottom):
+	#extractModelParameters: loop over one or more output files
+	#extractParameters_1file: extract model parameters for all sections (unstandardized, stdyx, stdy, std in a single file
+	#extractParameters_1section: extract model parameters for a given section.
+	#extractParameters_1chunk: extract model parameters for a given chunk (e.g., Latent class 2, Between Level) within a given section.
+	
+	outfiles <- getOutFileList(target, recursive, filefilter)
+	
+	allFiles <- list()
+	for (curfile in outfiles) {
+		#if not recursive, then each element is uniquely identified (we hope!) by filename alone
+		if (recursive==FALSE)	listID <- make.names(splitFilePath(curfile)$filename) #each list element is named by the respective file
+		else listID <- make.names(curfile) #each list element is named by the respective file
+		
+		allFiles[[listID]] <- extractParameters_1file(curfile, dropDimensions, resultType)
+	}
+	
+
+	#dropDimensions <- TRUE
+	if (length(allFiles) == 1) allFiles <- allFiles[[1]] # when only extracting a single file, return just the parameters list for the single model
+	else if (dropDimensions == TRUE) {
+		#in the case of multi-file output, we want to ensure that the interior lists (which contain model sections like stdyx.standardized)
+		#all have a similar structure. But if all of them have only one element 
+		allNames <- sapply(allFiles, names)
+		allLengths <- sapply(allNames, length)
+		
+		#if there is only one unique name in the bunch and all sub-list lengths are 1, then collapse
+		#could probably just check for one unique name.
+		if (length(unique(unlist(allLengths))) == 1 && length(unique(unlist(allNames))) == 1) {
+			allFiles <- sapply(allFiles, "[", 1)
+		}
+#		nameLengths <- sapply(allNames, length)
+#		names(nameLengths) <- NULL
+#		numUniqueLengths <- length(unique(nameLengths))
+#		if (numUniqueLengths == 1) {
+#			#all files in the model results list have the same number of elements
+#			#need to check for identical names
+#			
+#		}
+	}
+	
+	return(allFiles)
+}	
+	
+
+
+#######
+#EXPERIMENTAL CODE BELOW FOR GRAPHING MODELS
+  
+  
+   
+	
+
+
+#test <- extractModelParameters("C:\\Program Files\\Mplus\\Mplus Examples\\User's Guide Examples\\ex5.1.out")
+
+addNode <- function(dotModel, name, role, type) {
+	if (!inherits(dotModel, "list")) stop("dotModel parameter must be a list")
+	
+	if (is.null(dotModel[[name]])) dotModel[[name]] <- list(role=role, type=type)
+	else {
+		#okay to convert something we thought was observed to latent (but not the other way
+		if (dotModel[[name]]$type == "observed" && type == "latent") dotModel[[name]]$type <- type			
+
+		#append the role if it's not already present (vars can have many roles)
+		if (!role %in% dotModel[[name]]$role) dotModel[[name]]$role <- c(dotModel[[name]]$role, role) 
+	}
+	
+	return(dotModel)
+}
+
+connectNodes <- function(dotModel, node1, node2, connectionType) {
+	
+}
+
+graphModel <- function(model) {
+	require(plyr)
+	if (!inherits(model, "data.frame")) stop("Parameter model must be a data.frame")
+	
+	byOnWith <- grep("\\.(BY|ON|WITH)$", model$paramHeader, perl=TRUE)
+	
+	#create a df with name1, connectiontype, name2
+	dotModel <- list(nodes=list(), connections=list())
+	connections <- a_ply(model, 1, function(row) {
+				splitHeader <- strsplit(row$paramHeader, ".", fixed=TRUE)[[1]]
+				varName1 <- paste(splitHeader[-length(splitHeader)], collapse=".")
+				connectType <- splitHeader[length(splitHeader)]
+				varName2 <- row$param
+				
+				if (connectType == "ON") {
+					dotModel$nodes <<- addNode(dotModel$nodes, name=varName1, role="outcome", type="observed")
+					dotModel$nodes <<- addNode(dotModel$nodes, name=varName2, role="predictor", type="observed")
+					dotModel$connections <<- connectNodes(dotModel$connections, varName1, varName2, "<-")
+					
+				}
+				else if (connectType == "WITH") {
+					dotModel <<- addNode(dotModel$nodes, name=varName1, role="covariance", type="observed")
+					dotModel <<- addNode(dotModel$nodes, name=varName2, role="covariance", type="observed")
+					dotModel$connections <<- connectNodes(dotModel$connections, varName1, varName2, "<->")
+				}
+				else if (connectType == "BY") {
+					dotModel <<- addNode(dotModel$nodes, name=varName1, role="factor", type="latent")
+					dotModel <<- addNode(dotModel$nodes, name=varName2, role="indicator", type="observed")
+					dotModel$connections <<- connectNodes(dotModel$connections, varName1, varName2, "->")
+				}
+			})
+	
+#	varTypes <- ldply(strsplit(byOnWith, ".", fixed=TRUE), function(element) {
+#				varName <- paste(element[-length(element)], collapse=".")
+#				if (element[length(element)] == "BY") return(data.frame(name=varName, type="latent"))
+#				else return(data.frame(name=varName, type="observed"))
+#			})
+#
+#	
+#	latentVars <- na.omit(unique(latentVars))
+	
+#	print(latentVars)
+#	dotModel <- addNodes(list(), data.frame(name=latentVars, type="latent", stringsAsFactors=FALSE))
+	
+	return(dotModel)	
 }

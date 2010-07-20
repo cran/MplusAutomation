@@ -32,7 +32,7 @@ The \code{data.frame} contains the following variables:
 %%  \item{comp1 }{Description of 'comp1'}
 \item{Title}{Title for the model, specified by the TITLE: command}
 \item{Filename}{Filename of the output file}
-\item{InputInstructions}{A string containing the full input syntax for the model}
+%\item{InputInstructions}{A string containing the full input syntax for the model}
 \item{Estimator}{Estimator used for the model (e.g., ML, MLR, WLSMV, etc.)}
 \item{LL}{Log-likelihood of the model}
 \item{BIC}{Bayesian Information Criterion}
@@ -69,8 +69,7 @@ The \code{data.frame} contains the following variables:
 
 \code{\link{runModels}}
 }
-%\examples{
-%}
-% Add one or more standard keywords, see file 'KEYWORDS' in the
-% R documentation directory.
+\examples{
+\dontrun{allExamples <- extractModelSummaries("C:/Program Files/Mplus/Mplus Examples/User's Guide Examples")}
+}
 \keyword{interface}

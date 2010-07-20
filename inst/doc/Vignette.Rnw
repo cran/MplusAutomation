@@ -24,13 +24,13 @@ columns=fullflexible						%makes character spacing nice
 \setlength{\parskip}{0.3cm}
 \title{MplusAutomation Examples}
 \author{Michael N. Hallquist}
-\date{Package version 0.3-2}
+\date{Package version 0.3-3}
 \maketitle
 \tableofcontents
 \bigskip
 %Note that I need to set the directory before building this file, but shouldn't set it using setwd
 %because then CRAN maintainers can't link to the same directory.
-%setwd("C:/Data_Analysis/Mplus_Automation/pkg/inst/doc")
+%setwd(file.path(getMainDir(), "Mplus_Automation/pkg/inst/doc"))
 \section{Overview}
 This guide provides examples of how to use the functions in the MplusAutomation package.
 The package is designed to automate three major aspects of latent variable modeling in Mplus:
@@ -205,13 +205,14 @@ to do so, so the syntax above should suffice.
 
 \section{Extracting model summary statistics}
 Another major purpose of the package is to allow for easy extraction of model
-summary statistics from a group of models. Such summary statistics include items such as
+summary statistics from one or more models. Such summary statistics include items such as
 log-likelihood values, root mean squared error of approximation (RMSEA), and Akaike's Information
 (AIC).
 
 The \lstinline|extractModelSummaries| function is designed to extract model summaries from a group of models
 located within a directory (or nested within subdirectories). This function returns a \lstinline|data.frame|
-containing one row per model, with columns representing several fit statistics.
+containing one row per model, with columns representing several fit statistics. Note that \lstinline|extractModelSummaries|
+can also extract summaries from a single file by simply passing in a file, not a directory, as the \lstinline|target|.
 
 A basic call to the function includes the directory containing output files to be parsed:
 
@@ -298,20 +299,126 @@ tables of summary statistics.
 \section{Extracting model parameters}
 
 The \lstinline|extractModelParameters| function extracts the model parameters from 
-the MODEL RESULTS section of a given Mplus output file.
-Parameters include the parameter estimate, std. err, param/s.e., and two-tailed p-value.
-Model results are returned as a \lstinline|data.frame| object.
+the MODEL RESULTS and STANDARDIZED MODEL RESULTS sections of a given Mplus output file.
+Examples of such parameters include the parameter estimate, std. err, param/s.e., and two-tailed p-value.
 
-Example:
+As of MplusAutomation version 0.3-3, \lstinline|extractmodelParameters| supports extraction of results from
+many output files, with the results being returned as a list object, one element per output file. In addition,
+version 0.3-3 now returns all available model results, unstandardized and standardized, from each output file,
+with these results being returned as a list object whose elements are \lstinline|data.frame| objects consisting
+of relevant parameters. Relatedly, the resultType parameter has been deprecated and will be removed in a future version.
+
+\subsection{Example: Extracting parameters from a single file}
 
 \begin{lstlisting}
-modelResults <- extractModelParameters("C:/Data_Analysis/Mplus Output.out", "stdyx")
+modelResults <- extractModelParameters("C:/Data_Analysis/Mplus Output.out")
 \end{lstlisting} 
 
-This call will return a data.frame object with all model parameters from the STDYX
-standardization section of the output.
+The above call will return a list with unstandardized and standardized results (if requested by including OUTPUT: STANDARDIZED)
+from the Mplus Output.out file. If all standardizations are available in the output, the returned list will have the following elements:
+\lstinline|unstandardized|, \lstinline|stdyx.standardized|, \lstinline|stdy.standardized|, and \lstinline|std.standardized|. Each of these
+elements is a \lstinline|data.frame| containing model results for the relevant section. Such elements may be accessed in using traditional R
+list operators, such as:
 
-This function returns a \lstinline|data.frame| containing the model parameters for the section specified above. Variables include
+\begin{lstlisting}
+unstandardizedResults <- modelResults$unstandardized
+
+#equivalently
+standardizedResults <- modelResults[["stdyx.standardized"]]
+\end{lstlisting}
+
+\subsection{Example: Extracting parameters from multiple files}
+
+By passing in a directory as the \lstinline|target| parameter to \lstinline|extractModelParameters|, parameters for all files in the specified
+directory will be parsed and returned as a list, with one element per file. As with \lstinline|extractModelSummaries|, the \lstinline|recursive|
+parameter specifies whether to parse files nested within subdirectories, and the \lstinline|filefilter| specifies and optional Perl-compatible
+regular expression for parsing only matching files within the \lstinline|target| directory.
+
+Say, for example, that there were two subdirectories within the ComparingLCAvCFA directory with 3 outputs each.
+Note that this example builds on the recursive \lstinline|runModels| example above.
+
+\begin{lstlisting}
+ComparingLCAvCFA/LCA/1-class LCA.out
+ComparingLCAvCFA/LCA/2-class LCA.out  
+ComparingLCAvCFA/LCA/3-class LCA.out
+
+ComparingLCAvCFA/CFA/1-factor CFA.out
+ComparingLCAvCFA/CFA/2-factor CFA.out
+ComparingLCAvCFA/CFA/3-factor CFA.out
+\end{lstlisting}
+
+Then the following code would extract model parameters for all files in the directory structure, returning each output as a list element.
+
+\begin{lstlisting}
+> allModelParameters <- extractModelParameters("C:/Data_Analysis/ComparingLCAvCFA", recursive=TRUE)
+\end{lstlisting}
+
+The names of the returned list elements would be based on the directory and file names of each file (note that spaces, slashes, and the
+minus sign have been replaced by periods to be compatible with R naming conventions):
+
+\begin{lstlisting}
+> names(allModelParameters)
+
+ComparingLCAvCFA.LCA.1.class.LCA.out
+ComparingLCAvCFA.LCA.2.class.LCA.out  
+ComparingLCAvCFA.LCA.3.class.LCA.out
+ComparingLCAvCFA.CFA.1.factor.CFA.out
+ComparingLCAvCFA.CFA.2.factor.CFA.out
+ComparingLCAvCFA.CFA.3.factor.CFA.out
+\end{lstlisting}
+
+So, to extract the STDYX standardized results for the 2-factor CFA, one would access that \lstinline|data.frame| as follows:
+
+\begin{lstlisting}
+TwoFacCFA.STDYX <- allModelParameters$ComparingLCAvCFA.CFA.2.factor.CFA.out$stdyx.standardized
+\end{lstlisting}
+
+\subsubsection{Extracting and combining model results across files and sections}
+
+Depending on the application, it may be useful to only retain certain sections or to build a single large data.frame from the multi-file
+list. What follows are a few standard R practices for combining and subsetting data that may be unfamiliar to inexperienced R users. These
+examples serve to demonstrate how to work with the \lstinline|extractModelParameters| list flexibly.
+
+Example: Only retaining unstandardized output
+
+By default, extractModelParameters returns unstandardized and standardized output, where available. To retain only unstandardized results, for example,
+one could do the following (building on the CFA v. LCA example above):
+
+\begin{lstlisting}
+unstandardizedOnly <- sapply(allModelParameters, "[", "unstandardized")
+\end{lstlisting}
+
+Note that the variable names of the \lstinline|unstandardizedOnly| list will represent a concatenation of the filename with the unstandardized keyword.
+For example, the first element will now be named: \lstinline|ComparingLCAvCFA.LCA.1.class.LCA.out.unstandardized|. Names can be manually tweaked using
+the \lstinline|names| function. For example, to retain the existing filenames without appending .unstandardized, this would work:
+
+\begin{lstlisting}
+oldNames <- names(allModelParameters)
+unstandardizedOnly <- sapply(allModelParameters, "[", "unstandardized")
+names(unstandardizedOnly) <- oldNames
+\end{lstlisting}
+
+Example: Combining multi-file output into a single data.frame
+
+Rather than having a list of model results, where each element represents the parameters from a single file, it may be useful
+to combine these results into a single data.frame. The following code would accomplish this (assumes the immediately prior code was run):
+
+\begin{lstlisting}
+#add the filename as a field in the data.frame (so it's uniquely identified when combined)
+lapply(names(unstandardizedOnly), function(element) {
+	unstandardizedOnly[[element]]$filename <<- element
+})
+
+#this will only work if all data.frames have identical columns (i.e., same Mplus output fields)
+combinedParameters <- do.call("rbind", unstandardizedOnly)
+\end{lstlisting}
+
+Now, \lstinline|combinedParameters| is a single data.frame where each output file is identified by a \lstinline|filename| field.
+
+\subsection{Basic structure of each model results section}
+At the most basic level, model parameters for a given section (and perhaps a given file) are stored as a \lstinline|data.frame|.
+Variables included in such \lstinline|data.frame| objects include:
+
 \begin{enumerate}
 	\item paramHeader: The header that begins a given parameter set. Example: "FACTOR1 BY"
 	\item param: The particular parameter being measured (within \lstinline|paramHeader|). Example: "ITEM1"
@@ -320,6 +427,10 @@ This function returns a \lstinline|data.frame| containing the model parameters f
 	\item est\_se: Quotient of \lstinline|paramest/se|, representing z-test/t-test in large samples
 	\item pval: Two-tailed p-value for the \lstinline|est_se| quotient
 \end{enumerate}
+
+Some models may provide different parameters, such as posterior standard deviation for Bayesian models, and these are
+extracted appropriately by the function. See the R documentation for the function: \lstinline|?extractModelParameters| for details
+about variable names for different model types. 
 
 \section{Summarizing model fit statistics in tabular form}
 

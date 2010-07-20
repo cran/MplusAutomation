@@ -52,6 +52,18 @@ friendlyGregexpr <- function(pattern, charvector, perl=TRUE) {
   return(convertMatches)
 }
 
+splitDFByRow <- function(df) {
+	#take a data.frame and return a list where each element is a data.frame containing the single row.
+	if (!inherits(df, "data.frame")) stop("df is not a data.frame")
+	
+	retList <- vector("list", nrow(df))
+	
+	for (i in 1:nrow(df)) {
+		retList[[i]] <- df[i,]
+	}
+	return(retList)
+}
+
 
 classifyTags <- function(tagVector, iteratorsVector) {
   #accepts a vector of tags to be classified
@@ -268,13 +280,19 @@ updateCurrentValues <- function(templateTags, initCollection) {
 	if (length(initArrayPositions) > 0) {
 	
 	  #use plyr's splitter_a function to divide dataset by row (builds a big list)
-	  divideByRow <- splitter_a(templateTags$initTags[initArrayPositions,], 1)
+		#20Jul2010: Had to call splitter function directly, ignoring namespace because plyr 1.0 hid this.
+	  #divideByRow <- plyr:::splitter_a(templateTags$initTags[initArrayPositions,], 1)
+		#actually, splitter_a no longer has the same return type (it's now an environment)
+		#would have to call row$data$tag... just replace with homespun function defined above.
+		
+		divideByRow <- splitDFByRow(templateTags$initTags[initArrayPositions,])
+		
 	  
 	  #for each element of the list, check for a match with this iterator and return the value of interest
 	  #if the array tag is not for this iterator, return the current value unchanged
 	  templateTags$initTags$currentValue[initArrayPositions] <- unlist(sapply(divideByRow,
 	      function(row) {
-	        split <- strsplit(row$tag, split="#", fixed=TRUE)[[1]]
+					split <- strsplit(row$tag, split="#", fixed=TRUE)[[1]]
 	        if (length(split) != 2) stop("array tag missing iterator: ", row$tag)
 	        
 	        if (split[2] == initCollection$curIteratorName) {
@@ -576,7 +594,8 @@ finalizeInitCollection <- function(initCollection) {
     if (nrow(initTags) == 0) break #some tags, but none of the simple or array variety, which we want to replace
 
     #use plyr's splitter_a function to divide dataset by row (builds a big list)
-    divideByRow <- splitter_a(initTags, 1)
+		#divideByRow <- plyr:::splitter_a(initTags, 1)
+		divideByRow <- splitDFByRow(initTags)
     
     #for each element of the list, check for a match with this iterator and return the value of interest
     initTags$currentValue <- unlist(sapply(divideByRow,

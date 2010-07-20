@@ -1,3 +1,22 @@
+Version 0.3-3
+
+- extractModelParameters extracts 6-column output from estimator=bayes models (Mplus V6).
+- extractModelParameters supports (most) older output format from Mplus 4.2 and later.
+- extractModelParameters function now accepts a single output file or a directory, like extractModelSummaries. Return a list if multiple files.
+- extractModelParameters now extracts unstandardized and standardized results, where available. Returns a list. resultType is deprecated.
+- extractModelParameters now extracts constraints listed under "New/Additional Parameters".
+- bugfix: extractModelParameters omitted latent class regression coefficients in mixture models.
+- bugfix: extractModelParameters could not locate section end for some standardized parameters.
+- bugfix: extractModelParameters failed to identify latent class membership with multiple categorical latent variables. 
+- Changed runModels to limit Windows-specific command line tweaks to R running on Windows computers.
+- Removed InputInstructions from extractModelSummaries routine. Made output too cluttered.
+- In extractModelSummaries routine, only warn about missing log-likelihood for ML estimators.
+- Changed runModels_Interactive to use native TCL directory browser on non-Windows machines.
+- Improved runModels_Interactive to place log file in same directory as run target, unless otherwise selected.
+- Changed Mplus call in runModels to use relative filename after changing to the proper directory (improves Linux runs).
+- bugfix: corrected runModels attempt to write log file when NULL specified.
+- plyr 1.0 hid (and changed) the splitter_a function, which made createModels fail. Replaced splitter_a with homespun function.
+
 Version 0.3-2
 
 - Added prepareMplusData convenience function, used to export data from R to Mplus.
@@ -32,7 +51,7 @@ Version 0.2-5
 Version 0.2-4
 
 - Added package vignette (in the inst/doc directory).
-- Included NEWS file
+- Included NEWS file.
 - Added flush commands to log file writing in runModels to allow for progress tracking.
 
 Version 0.2-3
