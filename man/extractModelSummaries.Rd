@@ -54,10 +54,13 @@ The \code{data.frame} contains the following variables:
 \item{BLRT_PValue}{P-value of the Bootstrapped Likelihood Ratio Test (TECH14) testing whether the K class model is significantly better than K-1}
 \item{BLRT_Numdraws}{The number of bootstrapped samples used in the Bootstrapped Likelihood Ratio Test}
 \item{SRMR}{Standardized root mean square residual}
+\item{SRMR.Between}{For TYPE=TWOLEVEL output, standardized root mean square residual for between level}
+\item{SRMR.Within}{For TYPE=TWOLEVEL output, standardized root mean square residual for within level}
 \item{WRMR}{Weighted root mean square residual}
 \item{ChiSqBaseline_Value}{Baseline (unstructured) chi-squared value}
 \item{ChiSqBaseline_DF}{Baseline (unstructured) chi-squared degrees of freedom}
 \item{ChiSqBaseline_PValue}{Baseline (unstructured) chi-squared p value}
+\item{NumFactors}{For TYPE=EFA output, the number of factors}    
 }
 %\references{
 %% ~put references to the literature/web site here ~

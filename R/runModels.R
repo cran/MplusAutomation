@@ -1,31 +1,3 @@
-#helper function
-splitFilePath <- function(abspath) {
-  #function to split absolute path into path and filename 
-  #code adapted from R.utils filePath command
-  if (!is.character(abspath)) stop("Path not a character string")
-  if (nchar(abspath) < 1 || is.na(abspath)) stop("Path is missing or of zero length")
-  
-  components <- strsplit(abspath, split="[\\/]")[[1]]
-  lcom <- length(components)
-  
-  stopifnot(lcom > 0)
-  
-  #the file is the last element in the list. In the case of length == 1, this will extract the only element.
-  relFilename <- components[lcom]
-  
-  if (lcom == 1) {
-    dirpart <- NA_character_
-  }
-  else if (lcom > 1) {
-    #drop the file from the list (the last element)
-    components <- components[-lcom]
-    dirpart <- do.call("file.path", as.list(components)) 
-  }
-  
-  return(list(directory=dirpart, filename=relFilename))
-}
-
-
 runModels_Interactive <- function(directory=getwd(), recursive="0", 
     showOutput="1", replaceOutfile="1", checkDate="0", logFile="1")
 {

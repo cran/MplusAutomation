@@ -981,7 +981,7 @@ prepareMplusData <- function(df, filename, keepCols, dropCols) {
 	if (!missing(keepCols) && length(keepCols) > 0) {
 		df <- df[, keepCols]
 	}
-	
+	  
 	#drop columns specified by dropCols
 	if (!missing(dropCols) && length(dropCols) > 0) {
 		#Process vector of columns to drop
@@ -991,10 +991,20 @@ prepareMplusData <- function(df, filename, keepCols, dropCols) {
 		
 	}
 	
+  #convert factors to numbers
+  df <- as.data.frame(lapply(df, function(col) {
+            if (is.factor(col)) return(sapply(col, as.numeric)) #can't use ifelse because is.factor returns only one element, and ifelse enforces identical length
+            else if (is.character(col)) {
+              warning("Character data requested for output using prepareMplusData.\n  Mplus does not support character data.")
+              return(col)
+            }
+            else return(col)
+          }))
+  
 	write.table(df, filename, sep="\t", col.names = FALSE, row.names = FALSE, na=".")
 	
 	#variable created for readability
-	variableNames <- paste(names(df), collapse=" ")
+	variableNames <- paste(gsub("\\.", "_", names(df)), collapse=" ")
 	
 	#short names?
 	#shortNames <- paste(substr(names(df), 1, 8), collapse=" ")

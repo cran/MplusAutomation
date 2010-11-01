@@ -1,3 +1,20 @@
+Version 0.4
+
+- unified model parsing function readModels() implemented. Returns list of summaries, parameters, and savedata output.
+- completely refactored extractModelSummaries. Now handles more summary statistics, including initial support of MI output.
+- extractModelSummaries now drops any fields that are all missing.
+- preliminary support for extracting model summary statistics from EFA output.
+- bugfix: warning for missing LL now falls appropriately after extraction of estimator in extractModelSummaries
+- bugfix: grabResultsSection failed when there was more than one match for a section header.
+- bugfix: extractModelSummaries now correctly extracts SRMR for multilevel models.
+- extractModelSummaries now retains only the filename, not the path, in the Filename field.
+- bugfix: getSavedata_Data now properly handles output file located in the working directory.
+- changed getSavedata_Data to give a warning, not error, when save data not present in output.
+- restrict extractModelSummaries function to TESTS OF MODEL FIT output.
+- bugfix: prepareMplusData now correctly converts factors to numbers.
+- bugfix: prepareMplusData converts periods in variable names to underscores.
+- reorganized source files for improved clarity
+
 Version 0.3-3
 
 - extractModelParameters extracts 6-column output from estimator=bayes models (Mplus V6).

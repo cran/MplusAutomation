@@ -14,8 +14,8 @@ The MplusAutomation package leverages the flexibility of the
 \tabular{ll}{
 Package: \tab MplusAutomation\cr
 Type: \tab Package\cr
-Version: \tab 0.3-3\cr
-Date: \tab 2010-07-20\cr
+Version: \tab 0.4\cr
+Date: \tab 2010-11-01\cr
 License: \tab LGPL-3\cr
 LazyLoad: \tab yes\cr
 }
@@ -39,8 +39,15 @@ To extract raw data created by the SAVEDATA command (e.g., class membership prob
 
 To extract unstandardized or standardized parameter estimates from a single output file, see \code{\link{extractModelParameters}}.
 
+Summaries, parameters, and SAVEDATA output can be extracted simultaneously using the \code{\link{readModels}} function, and this is the recommended
+way to extract output with this package.
+
 To create a group of related models from a single template, see \code{\link{createModels}}. Please read the MplusAutomation
 vignette provided along with the package (and on the CRAN website) in order to understand the template language.
+
+In addition to the major functions above, a function for converting an R data.frame for use with Mplus is provided:
+\code{\link{prepareMplusData}}. This converts the data.frame to a tab-delimited file and provides an Mplus syntax stub for variable
+names.
 }
 \author{
 Michael Hallquist

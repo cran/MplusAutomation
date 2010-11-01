@@ -18,7 +18,7 @@ extractModelParameters(target=getwd(), recursive=FALSE, filefilter, dropDimensio
   	be parsed. May be a full path, relative path, or a filename within the working directory.
   	Defaults to the current working directory. Example: "C:/Users/Michael/Mplus Runs"}
   \item{recursive}{optional. If \code{TRUE}, parse all models nested in subdirectories
-  	within \code{directory}. Defaults to \code{FALSE}.}
+  	within \code{target}. Defaults to \code{FALSE}.}
   \item{filefilter}{a Perl regular expression (PCRE-compatible) specifying particular output
   	files to be parsed within \code{directory}. See \code{regex} or \url{http://www.pcre.org/pcre.txt}
   	for details about regular expression syntax.}
