@@ -1,3 +1,12 @@
+Version 0.4-1
+
+- initial support for extracting fit statistics from DATA: TYPE=MONTECARLO output (external Monte Carlo)
+- show summary routines now check to make sure that all columns requested are present in the summary data.frame.
+- show summary routines now check for the sortBy column for cases where the sort field is missing.
+- bugfix: properly handle blank sections in model results output.
+- bugfix: getSavedata_Fileinfo now properly handles relative and absolute paths in the savedata location.
+- better debug output for extractModelParameters.
+
 Version 0.4
 
 - unified model parsing function readModels() implemented. Returns list of summaries, parameters, and savedata output.

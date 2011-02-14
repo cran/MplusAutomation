@@ -44,7 +44,6 @@ extractValue <- function(pattern, textToScan, filename, type="int") {
   matchlines <- grep(pattern, textToScan, ignore.case=TRUE, value=TRUE)
   
   if (length(matchlines) > 1) {
-    browser()
 		stop("More than one match found for parameter: ", pattern, "\n  ", filename)
     #return(matchlines) #not sure what I was thinking here... seems better to stop than warn and return lines
   }
@@ -188,9 +187,8 @@ extractSummaries_1section <- function(modelFitSection, arglist, filename) {
 	#function to extract model fit statistics from a section
 	#wrapped to allow for multiple fit sections, as in EFA files.
 	
-	#maybe develop different fields for MI output, same section headers
-	#define section headers, fields, types for all section and variables
-	if (grepl("imputation", arglist$DataType, ignore.case=TRUE)) {
+    #MI and Montecarlo data types have fundamentally different output (means and sds per fit stat)
+	if (grepl("imputation", arglist$DataType, ignore.case=TRUE) || grepl("montecarlo", arglist$DataType, ignore.case=TRUE)) {
 		modelFitSectionHeaders <- c(
 				"", #section-inspecific parameters
 				"Chi-Square Test of Model Fit",
@@ -656,17 +654,32 @@ l_getSavedata_Data <- function(outfile, outfiletext) {
 
   #outfile should be a relative or absolute path to the .out file with the savedata section to be parsed
   #if no directory is provided, the file is assumed with be within the working directory getwd().
-  
-  directory <- splitFilePath(outfile)$directory
+
+  outfileDirectory <- splitFilePath(outfile)$directory
   fileInfo <- l_getSavedata_Fileinfo(outfile, outfiletext)
-  
+
   #if fileinfo could not be loaded (no savedata section), then abort data pull
   if (is.null(fileInfo)) return(NULL)
+
+  savedataSplit <- splitFilePath(fileInfo$fileName)
   
-  #if directory is not empty, then add it to filename
-  if (is.na(directory)) savedataFile <- fileInfo$fileName
-  else savedataFile <- file.path(directory, fileInfo$fileName)
-  
+  #if outfile target directory is non-empty, but savedataFile is without directory, then append
+  #outfile directory to savedataFile. This ensures that R need not be in the working directory
+  #to read the savedataFile. But if savedataFile has an absolute directory, don't append
+
+  #if savedata directory is present and absolute, or if no directory in outfile, just use filename as is
+  if (!is.na(savedataSplit$directory) && savedataSplit$absolute)
+    savedataFile <- fileInfo$fileName #just use savedata filename if has absolute path
+  else if (is.na(outfileDirectory))
+    savedataFile <- fileInfo$fileName #just use savedata filename if outfile is missing path (working dir)
+  else
+    savedataFile <- file.path(outfileDirectory, fileInfo$fileName) #savedata path relative or absent and outfile dir is present
+
+  #cat("Outfile dir: ", outfileDirectory, "\n")
+  #cat("Savedata directory: ", savedataSplit$directory, "\n")
+  #cat("concat result: ", savedataFile, "\n")
+
+
   #need to read as fixed width format given the way Mplus left-aligns missing vals (*)
   #dataset <- read.table(file=file.path(path, fileInfo$fileName), header=FALSE, 
   #    na.strings="*", col.names=fileInfo$varNames)
@@ -755,17 +768,22 @@ l_getSavedata_Fileinfo <- function(outfile, outfiletext) {
 
 #a helper function to be used by wrappers that generate HTML, LaTex, and on-screen displays of summary statistics
 subsetModelList <- function(modelList, keepCols, dropCols, sortBy) {
-  #if did not pass either drop or keep, setup useful defaults
-  if (missing(keepCols) && missing(dropCols)) keepCols <- c("Title", "LL", "Parameters", "AIC", "AICC", "BIC", "RMSEA_Estimate")
-  
-  if (missing(sortBy)) sortBy <- "AICC"
-  
   #only allow keep OR drop.
   if(!missing(keepCols) && !missing(dropCols)) stop("keepCols and dropCols passed to subsetModelList. You must choose one or the other, but not both.")
-  
+    
+  #if did not pass either drop or keep, setup useful defaults
+  if (missing(keepCols) && missing(dropCols)) keepCols <- c("Title", "LL", "Parameters", "AIC", "AICC", "BIC", "RMSEA_Estimate")
+    
   #keep only columns specified by keepCols
   if (!missing(keepCols) && length(keepCols) > 0) {
-    MplusData <- modelList[, keepCols]
+    #check to make sure each column exists if keepCols used    
+    summaryNames <- names(modelList)
+    for (colName in keepCols) {
+      if (!colName %in% summaryNames) keepCols <- keepCols[-which(keepCols==colName)]
+    }
+    
+    if (length(keepCols) == 0) stop("All fields passed as keepCols are missing from data.frame\n  Fields in data.frame are:\n  ", paste(strwrap(paste(summaryNames, collapse=" ", sep=""), width=80, exdent=4), collapse="\n"))
+    MplusData <- modelList[, keepCols, drop=FALSE]
   }
   
   #drop columns specified by dropCols
@@ -782,9 +800,21 @@ subsetModelList <- function(modelList, keepCols, dropCols, sortBy) {
   notMissing <- unlist(lapply(names(MplusData), function(column) {
             if(!all(is.na(MplusData[[column]]))) return(column)
           }))
+
+  #handle cases where sortBy is missing 
+  if (missing(sortBy)) {
+    if ("AICC" %in% notMissing) sortBy <- "AICC"
+    else if ("AIC" %in% notMissing) sortBy <- "AIC"
+    else if ("BIC" %in% notMissing) sortBy <- "BIC"
+    else if ("Title" %in% notMissing) sortBy <- "Title"
+    else sortBy <- NA_character_
+  }
+
+  if (!sortBy %in% notMissing) stop("sortBy field: ", sortBy, " is not present in the summary data.frame.\n  Check your keepCols and dropCols arguments and the summary data.frame")
   
   #sort data set correctly and drop columns where all models are missing
-  MplusData <- MplusData[order(MplusData[[sortBy]]), notMissing]
+  #need drop=FALSE to retain as data.frame in case only one column returned
+  MplusData <- MplusData[order(MplusData[[sortBy]]), notMissing, drop=FALSE]
   
   return(MplusData)
 }

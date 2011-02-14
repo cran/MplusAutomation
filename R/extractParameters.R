@@ -1,8 +1,8 @@
 #Helper function for extractModelParameters. Used to parse each subsection of output within a given file and given results section (e.g., stdyx section) 
 #There will be many chunks if latent classes, multiple groups, multilevel features are used.
-extractParameters_1chunk <- function(thisChunk, columnNames) {
-  if (missing(thisChunk) || is.na(thisChunk) || is.null(thisChunk)) stop("Missing chunk to parse.")
-  if (missing(columnNames) || is.na(columnNames) || is.null(columnNames)) stop("Missing column names for chunk.")
+extractParameters_1chunk <- function(filename, thisChunk, columnNames) {
+  if (missing(thisChunk) || is.na(thisChunk) || is.null(thisChunk)) stop("Missing chunk to parse.\n  ", filename)
+  if (missing(columnNames) || is.na(columnNames) || is.null(columnNames)) stop("Missing column names for chunk.\n  ", filename)
   
   #okay to match beginning and end of line because strip.white used in scan
   matches <- gregexpr("^\\s*((Means|Thresholds|Intercepts|Variances|Residual Variances|New/Additional Parameters)|([\\w_\\d+\\.#]+\\s+(BY|WITH|ON|\\|)))\\s*$", thisChunk, perl=TRUE)
@@ -29,7 +29,7 @@ extractParameters_1chunk <- function(thisChunk, columnNames) {
         else if (length(variable <- strapply(match, "^\\s*([\\w_\\d+\\.#]+)\\s+(BY|WITH|ON|\\|)\\s*$", c, perl=TRUE)[[1]]) > 0) {
           return(data.frame(startline=row$startline, keyword=NA_character_, varname=variable[1], operator=variable[2]))
         }
-        else stop("failure to match keyword: ", match)
+        else stop("failure to match keyword: ", match, "\n  ", filename)
       })
   
   comboFrame <- c()
@@ -93,7 +93,7 @@ extractParameters_1chunk <- function(thisChunk, columnNames) {
   
 }
 
-extractParameters_1section <- function(modelSection, sectionName) {
+extractParameters_1section <- function(filename, modelSection, sectionName) {
   #extract model parameters for a given model results section. A section contains complete output for all parameters of a given type
   #(unstandardized, stdyx, stdy, or std) for a single file.
   #section name is used to name the list element of the returned list
@@ -145,7 +145,7 @@ extractParameters_1section <- function(modelSection, sectionName) {
       if (exists("varNames"))
         detectionFinished <- TRUE
       else if (line > length(modelSection))
-        stop("Unable to determine column names for model results section.")
+        stop("Unable to determine column names for model results section.\n  ", filename)
       
     }
     return(varNames)
@@ -209,15 +209,17 @@ extractParameters_1section <- function(modelSection, sectionName) {
         thisChunk <- modelSection[(match+1):(topLevelMatches[matchIndex+1]-1)]
         chunkToParse <- TRUE				
       }
-      else if (matchIndex == length(topLevelMatches)) {
+      else if (matchIndex == length(topLevelMatches) && match+1 <= length(modelSection)) {
         #also assume that the text following the last topLevelMatch is also to be parsed
+        #second clause ensures that there is some chunk below the final header.
+        #this handles issues where a blank section terminates the results section, such as multilevel w/ no between
         thisChunk <- modelSection[(match+1):length(modelSection)]
         chunkToParse <- TRUE
         
       }
       
       if (chunkToParse == TRUE) {
-        parsedChunk <- extractParameters_1chunk(thisChunk, columnNames)
+        parsedChunk <- extractParameters_1chunk(filename, thisChunk, columnNames)
         
         #only append if there are some rows
         if (nrow(parsedChunk) > 0) {
@@ -233,7 +235,7 @@ extractParameters_1section <- function(modelSection, sectionName) {
     
     
   }
-  else allSectionParameters <- extractParameters_1chunk(modelSection, columnNames) #just one model section
+  else allSectionParameters <- extractParameters_1chunk(filename, modelSection, columnNames) #just one model section
   
   #if any std variable is one of the returned columns, we are dealing with an old-style combined results section (i.e.,
   #standardized results are not divided into their own sections, as with newer output).
@@ -307,7 +309,7 @@ extractParameters_1file <- function(outfiletext, filename, resultType) {
   allSections <- list() #holds parameters for all identified sections
   
   unstandardizedSection <- getMajorSection("^MODEL RESULTS$", outfiletext)
-  if (!is.null(unstandardizedSection)) allSections <- appendListElements(allSections, extractParameters_1section(unstandardizedSection, "unstandardized"))
+  if (!is.null(unstandardizedSection)) allSections <- appendListElements(allSections, extractParameters_1section(filename, unstandardizedSection, "unstandardized"))
   
   beginStandardizedSection <- grep("^STANDARDIZED MODEL RESULTS$", outfiletext)
   
@@ -318,19 +320,19 @@ extractParameters_1file <- function(outfiletext, filename, resultType) {
     #could shift extractParameters_1section to receive the section header and pull out text there. Might streamline this.
     
     stdYXSection <- getMajorSection("^STDYX Standardization$", remainder)
-    if (!is.null(stdYXSection)) allSections <- appendListElements(allSections, extractParameters_1section(stdYXSection, "stdyx.standardized"))
+    if (!is.null(stdYXSection)) allSections <- appendListElements(allSections, extractParameters_1section(filename, stdYXSection, "stdyx.standardized"))
     
     stdYSection <- getMajorSection("^STDY Standardization$", remainder)
-    if (!is.null(stdYSection)) allSections <- appendListElements(allSections, extractParameters_1section(stdYSection, "stdy.standardized"))
+    if (!is.null(stdYSection)) allSections <- appendListElements(allSections, extractParameters_1section(filename, stdYSection, "stdy.standardized"))
     
     stdSection <- getMajorSection("^STD Standardization$", remainder)
-    if (!is.null(stdSection)) allSections <- appendListElements(allSections, extractParameters_1section(stdSection, "std.standardized"))
+    if (!is.null(stdSection)) allSections <- appendListElements(allSections, extractParameters_1section(filename, stdSection, "std.standardized"))
     
     #if all individual standardized sections are absent, but the standardized section is present, must be old-style
     #combined standardized section (affects WLS and MUML, too). Extract and process old section. 
     if (all(is.null(stdYXSection), is.null(stdYSection), is.null(stdSection))) {
       oldStdSection <- getMajorSection("^STANDARDIZED MODEL RESULTS$", outfiletext)
-      if (!is.null(oldStdSection)) allSections <- appendListElements(allSections, extractParameters_1section(oldStdSection, "standardized")) #this section name should never survive the call
+      if (!is.null(oldStdSection)) allSections <- appendListElements(allSections, extractParameters_1section(filename, oldStdSection, "standardized")) #this section name should never survive the call
     }
     
   }

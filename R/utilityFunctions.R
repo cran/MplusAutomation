@@ -107,7 +107,7 @@ getOutFileList <- function(target, recursive=FALSE, filefilter) {
 
 #helper function
 splitFilePath <- function(abspath) {
-  #function to split absolute path into path and filename 
+  #function to split path into path and filename 
   #code adapted from R.utils filePath command
   if (!is.character(abspath)) stop("Path not a character string")
   if (nchar(abspath) < 1 || is.na(abspath)) stop("Path is missing or of zero length")
@@ -116,9 +116,10 @@ splitFilePath <- function(abspath) {
   lcom <- length(components)
   
   stopifnot(lcom > 0)
-  
+
   #the file is the last element in the list. In the case of length == 1, this will extract the only element.
   relFilename <- components[lcom]
+  absolute <- FALSE
   
   if (lcom == 1) {
     dirpart <- NA_character_
@@ -126,8 +127,11 @@ splitFilePath <- function(abspath) {
   else if (lcom > 1) {
     #drop the file from the list (the last element)
     components <- components[-lcom]
-    dirpart <- do.call("file.path", as.list(components)) 
+    dirpart <- do.call("file.path", as.list(components))
+    
+    #if path begins with C:, /, //, or \\, then treat as absolute
+    if (grepl("^([A-Z]{1}:|/|//|\\\\)+.*$", dirpart, perl=TRUE)) absolute <- TRUE
   }
   
-  return(list(directory=dirpart, filename=relFilename))
+  return(list(directory=dirpart, filename=relFilename, absolute=absolute))
 }
