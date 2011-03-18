@@ -3,7 +3,7 @@
 extractParameters_1chunk <- function(filename, thisChunk, columnNames) {
   if (missing(thisChunk) || is.na(thisChunk) || is.null(thisChunk)) stop("Missing chunk to parse.\n  ", filename)
   if (missing(columnNames) || is.na(columnNames) || is.null(columnNames)) stop("Missing column names for chunk.\n  ", filename)
-  
+
   #okay to match beginning and end of line because strip.white used in scan
   matches <- gregexpr("^\\s*((Means|Thresholds|Intercepts|Variances|Residual Variances|New/Additional Parameters)|([\\w_\\d+\\.#]+\\s+(BY|WITH|ON|\\|)))\\s*$", thisChunk, perl=TRUE)
   
@@ -98,60 +98,9 @@ extractParameters_1section <- function(filename, modelSection, sectionName) {
   #(unstandardized, stdyx, stdy, or std) for a single file.
   #section name is used to name the list element of the returned list
   
-  
   #first trim all leading and trailing spaces (new under strip.white=FALSE)
-  modelSection <- gsub("^\\s+|\\s+$", "", perl=TRUE, modelSection)
-  
-  #helper function to detect model results columns
-  detectColumnNames <- function(modelSection) {
-    
-    detectionFinished <- FALSE
-    line <- 1
-    while(detectionFinished == FALSE) {
-      thisLine <- strsplit(modelSection[line], "\\s+", perl=TRUE)[[1]]
-      if (line < length(modelSection)) nextLine <- strsplit(modelSection[line+1], "\\s+", perl=TRUE)[[1]]
-      else nextLine <- NA_character_
-      
-      #detect common Mplus output formats
-      #not especially flexible code, but hard to perfect it when names span two lines and headers have changed over versions
-      #Would be ideal to build element-by-element, but not feasible given ambiguity across versions and two-line headers
-      
-      #Bayesian (ESTIMATOR=BAYES) 6-column output 
-      if (identical(thisLine, c("Posterior", "One-Tailed", "95%", "C.I.")) &&
-          identical (nextLine, c("Estimate", "S.D.", "P-Value", "Lower", "2.5%", "Upper", "2.5%")))
-        varNames <- c("param", "est", "posterior_sd", "pval", "lower_2.5ci", "upper_2.5ci")
-      
-      #Usual five-column output that applies to most unstandardized and standardized sections in Mplus 5 and later
-      else if (identical(thisLine, c("Two-Tailed")) && 
-          identical(nextLine, c("Estimate", "S.E.", "Est./S.E.", "P-Value")))
-        varNames <- c("param", "est", "se", "est_se", "pval")
-      
-      #Old 5-column standardized output from Mplus 4.2
-      else if (identical(thisLine, c("Estimates", "S.E.", "Est./S.E.", "Std", "StdYX")))
-        #in cases where combined raw and std, should split out results into list form
-        varNames <- c("param", "est", "se", "est_se", "std", "stdyx")
-      
-      #Old 3-column output from Mplus 4.2
-      else if (identical(thisLine, c("Estimates", "S.E.", "Est./S.E.")))
-        #in cases where combined raw and std, should split out results into list form
-        varNames <- c("param", "est", "se", "est_se")
-      
-      #MUML estimator or WLS estimators with covariates do not allow std. errors or StdY for standardized output
-      #run 9.1b with MUML and OUTPUT:STANDARDIZED
-      else if (identical(thisLine, c("StdYX", "Std")) && identical (nextLine, c("Estimate", "Estimate")))
-        varNames <- c("param", "stdyx", "std")
-      
-      line <- line + 1
-      if (exists("varNames"))
-        detectionFinished <- TRUE
-      else if (line > length(modelSection))
-        stop("Unable to determine column names for model results section.\n  ", filename)
-      
-    }
-    return(varNames)
-    
-  }
-  
+  modelSection <- gsub("(^\\s+|\\s+$)", "", modelSection, perl=TRUE)
+
   columnNames <- detectColumnNames(modelSection)
   
   #Detect model section dividers

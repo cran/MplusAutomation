@@ -24,7 +24,7 @@ columns=fullflexible						%makes character spacing nice
 \setlength{\parskip}{0.3cm}
 \title{MplusAutomation Examples}
 \author{Michael N. Hallquist}
-\date{Package version 0.4}
+\date{Package version 0.4-2}
 \maketitle
 \tableofcontents
 \bigskip
@@ -53,9 +53,9 @@ the code below.
 
 \section{Installing and loading the package}
 
-The package was built using R 2.12.0, although it should be compatible with
-older versions of R. To obtain R 2.12.0 for Windows, follow this link:
-\url{http://cran.r-project.org/bin/windows/base/R-2.12.0-win.exe}
+The package was built using R 2.12.2, although it should be compatible with
+older versions of R. To obtain R 2.12.2 for Windows, follow this link:
+\url{http://cran.r-project.org/bin/windows/base/R-2.12.2-win.exe}
 
 After installing the program and launching R, type the following at the command
 line:
@@ -379,6 +379,15 @@ print(myLatexTable)
 See the Sweave manual for more details about combining LaTex with R.
 
 
+\section{Extracting model modification indices}
+
+The \lstinline|extractModIndices| function extracts the model modification indices from 
+the MODEL MODIFICATION INDICES sections of one or more Mplus output files. It is up to the user to request
+modification indices using OUTPUT: MODINDICES;, and for some models, such indices are not available (as noted
+in the WARNINGS section of the Mplus output.
+
+To be expanded...
+
 \section{Extracting model parameters}
 
 The \lstinline|extractModelParameters| function extracts the model parameters from 
@@ -516,11 +525,12 @@ extracted appropriately by the function. See the R documentation for the functio
 about variable names for different model types. 
 
 \section{readModels: Extracting all supported data from Mplus output}
-As of version 0.4, a new function, \lstinline|readModels| is provided that wraps three functions: \lstinline|extractModelSummaries|,
-\lstinline|extractModelParameters|, and \lstinline|getSavedata_Data|. The \lstinline|readModels| function will extract model summaries,
-parameters, and saved data (using the Mplus SAVEDATA syntax), respectively, into a single list. The top-level elements of the list
-represent distinct output files and are named by the corresponding Mplus output filename. Each top-level element is composed of up to three
-sub-elements: \lstinline|summaries|, \lstinline|parameters|, and \lstinline|savedata|. The structure of each of these elements is the same
+The \lstinline|readModels| function provides a single method for extracting all available information (that MplusAutomation currently handles)
+from one or more output files. More specifically, this function provides a wrapper around four other functions: \lstinline|extractModelSummaries|,
+\lstinline|extractModelParameters|, \lstinline|extractModIndices|, and \lstinline|getSavedata_Data|. The \lstinline|readModels| function will extract model summaries,
+parameters, modification indices, and saved data (using the Mplus SAVEDATA syntax), respectively, into a single list. The top-level elements of the list
+represent distinct output files and are named by the corresponding Mplus output filename. Each top-level element is composed of up to four
+sub-elements: \lstinline|summaries|, \lstinline|parameters|, \lstinline|mod_indices|, and \lstinline|savedata|. The structure of each of these elements is the same
 as the individual functions named above. Thus, the major purpose is to provide a single function that reads Mplus output, rather than
 requiring multiple calls per file.
 

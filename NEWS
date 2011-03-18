@@ -1,3 +1,8 @@
+Version 0.4-2
+- initial support for extracting model modification indices, when available: extractModIndices
+- bugfix: Corrected problem with extractModelSummaries failing when analyis or data sections were at the end of the input.
+- bugfix: Corrected whitespace stripping for cases where leading and trailing space is present.
+
 Version 0.4-1
 
 - initial support for extracting fit statistics from DATA: TYPE=MONTECARLO output (external Monte Carlo)

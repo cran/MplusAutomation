@@ -18,40 +18,6 @@
 
 #SOME THOUGHTS RE DOCUMENTATION
 #foreach tags may only be with respect to an iterator... could not have some random foreach var
-friendlyGregexpr <- function(pattern, charvector, perl=TRUE) {
-  require(plyr)
-  #now create data frame documenting the start and end of all tags
-  #rather than ldply, need a usual loop to track element number (in cases where charvector is a vector)
-  regexpMatches <- gregexpr(pattern, charvector, perl=perl)
-  
-  convertMatches <- c()
-  for (i in 1:length(regexpMatches)) {
-    thisLine <- regexpMatches[[i]]
-    #only append if there is at least one match on this line
-    if (thisLine[1] != -1) {
-      convertMatches <- rbind(convertMatches, data.frame(element=i, start=thisLine, end=thisLine+attr(thisLine, "match.length")-1))
-    }
-  }
-  
-  #if no matches exist, return null (otherwise, will break adply)
-  if (is.null(convertMatches)) return(NULL)
-  
-  #okay, now we have a data frame with the line, starting position, and ending position of every tag
-  
-  #time to classify into simple, array, iterator, and conditional
-  
-  #first, add the actual tag to the data.frame to make it easier to parse
-  #using adply (is this not its intended use?) to iterate over rows and apply func
-  convertMatches <- adply(convertMatches, 1, function(row) {
-        row$tag <- substr(charvector[row$element], row$start, row$end)
-        #for some reason, adply does not respect the stringsAsFactors here
-				return(as.data.frame(row, stringAsFactors=FALSE))        
-      })
-
-	convertMatches$tag <- as.character(convertMatches$tag)
-  return(convertMatches)
-}
-
 splitDFByRow <- function(df) {
 	#take a data.frame and return a list where each element is a data.frame containing the single row.
 	if (!inherits(df, "data.frame")) stop("df is not a data.frame")

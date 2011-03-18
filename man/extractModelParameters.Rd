@@ -5,7 +5,7 @@
 \description{
 Extracts the model parameters from the MODEL RESULTS section of one or more Mplus output files.
 If a particular output file has more than one results section (unstandardized, stdyx, stdy, and/or std),
-a list will be returned. If the \code{target} is a diretory, all .out files in that will be parsed
+a list will be returned. If the \code{target} is a directory, all .out files therein will be parsed
 and a single list will be returned, where the list elements are named by the output file name.  
 Returned parameters often include the parameter estimate, std. err, param/s.e., and two-tailed p-value.
 }
@@ -44,8 +44,8 @@ If \code{target} is a directory, a list will be returned, where each element con
 a single file, and the top-level elements are named after the corresponding output file name. Each
 element within this list is itself a list, with elements as in the single file case above. 
 
+The core \code{data.frame} for each MODEL RESULTS section typically has the following structure:
 
-returns a \code{data.frame} containing the MODEL RESULTS section of \code{outfile}. Variables include
 \item{paramHeader}{The header that begins a given parameter set. Example: "FACTOR1 BY"}
 \item{param}{The particular parameter being measured (within \code{paramHeader}). Example: "ITEM1"}
 \item{est}{Parameter estimate value.}

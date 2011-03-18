@@ -1,3 +1,38 @@
+friendlyGregexpr <- function(pattern, charvector, perl=TRUE) {
+  require(plyr)
+  #now create data frame documenting the start and end of all tags
+  #rather than ldply, need a usual loop to track element number (in cases where charvector is a vector)
+  regexpMatches <- gregexpr(pattern, charvector, perl=perl)
+  
+  convertMatches <- c()
+  for (i in 1:length(regexpMatches)) {
+    thisLine <- regexpMatches[[i]]
+    #only append if there is at least one match on this line
+    if (thisLine[1] != -1) {
+      convertMatches <- rbind(convertMatches, data.frame(element=i, start=thisLine, end=thisLine+attr(thisLine, "match.length")-1))
+    }
+  }
+  
+  #if no matches exist, return null (otherwise, will break adply)
+  if (is.null(convertMatches)) return(NULL)
+  
+  #okay, now we have a data frame with the line, starting position, and ending position of every tag
+  
+  #time to classify into simple, array, iterator, and conditional
+  
+  #first, add the actual tag to the data.frame to make it easier to parse
+  #using adply (is this not its intended use?) to iterate over rows and apply func
+  convertMatches <- adply(convertMatches, 1, function(row) {
+        row$tag <- substr(charvector[row$element], row$start, row$end)
+        #for some reason, adply does not respect the stringsAsFactors here
+        return(as.data.frame(row, stringAsFactors=FALSE))        
+      })
+  
+  convertMatches$tag <- as.character(convertMatches$tag)
+  return(convertMatches)
+}
+
+
 #expose as root-level function to be used by model summary extraction
 getMajorSection <- function(sectionHeader, outfiletext) {
   #helper sub-function to extract a model section given a certain header.
@@ -134,4 +169,69 @@ splitFilePath <- function(abspath) {
   }
   
   return(list(directory=dirpart, filename=relFilename, absolute=absolute))
+}
+
+
+#helper function to detect model results columns
+detectColumnNames <- function(modelSection, sectionType="model_results") {
+  
+  detectionFinished <- FALSE
+  line <- 1
+  while(detectionFinished == FALSE) {
+    thisLine <- strsplit(modelSection[line], "\\s+", perl=TRUE)[[1]] #assumes that lines are trimmed of leading/trailing whitespace
+    if (line < length(modelSection)) nextLine <- strsplit(modelSection[line+1], "\\s+", perl=TRUE)[[1]]
+    else nextLine <- NA_character_
+    
+    if (sectionType == "model_results") {
+
+      #detect common Mplus output formats
+      #not especially flexible code, but hard to perfect it when names span two lines and headers have changed over versions
+      #Would be ideal to build element-by-element, but not feasible given ambiguity across versions and two-line headers
+      
+      #Bayesian (ESTIMATOR=BAYES) 6-column output 
+      if (identical(thisLine, c("Posterior", "One-Tailed", "95%", "C.I.")) &&
+          identical (nextLine, c("Estimate", "S.D.", "P-Value", "Lower", "2.5%", "Upper", "2.5%")))
+        varNames <- c("param", "est", "posterior_sd", "pval", "lower_2.5ci", "upper_2.5ci")
+      
+      #Usual five-column output that applies to most unstandardized and standardized sections in Mplus 5 and later
+      else if (identical(thisLine, c("Two-Tailed")) && 
+          identical(nextLine, c("Estimate", "S.E.", "Est./S.E.", "P-Value")))
+        varNames <- c("param", "est", "se", "est_se", "pval")
+      
+      #Old 5-column standardized output from Mplus 4.2
+      else if (identical(thisLine, c("Estimates", "S.E.", "Est./S.E.", "Std", "StdYX")))
+        #in cases where combined raw and std, should split out results into list form
+        varNames <- c("param", "est", "se", "est_se", "std", "stdyx")
+      
+      #Old 3-column output from Mplus 4.2
+      else if (identical(thisLine, c("Estimates", "S.E.", "Est./S.E.")))
+        #in cases where combined raw and std, should split out results into list form
+        varNames <- c("param", "est", "se", "est_se")
+      
+      #MUML estimator or WLS estimators with covariates do not allow std. errors or StdY for standardized output
+      #run 9.1b with MUML and OUTPUT:STANDARDIZED
+      else if (identical(thisLine, c("StdYX", "Std")) && identical (nextLine, c("Estimate", "Estimate")))
+        varNames <- c("param", "stdyx", "std")
+    
+    }
+    else if (sectionType == "mod_indices") {
+      if (identical(thisLine, c("M.I.", "E.P.C.", "Std", "E.P.C.", "StdYX", "E.P.C.")))
+        varNames <- c("modV1", "operator", "modV2", "MI", "EPC", "Std_EPC", "StdYX_EPC") 
+                  
+      else if (identical(thisLine, c("M.I.", "E.P.C.")))
+      varNames <- c("modV1", "operator", "modV2", "MI", "EPC")
+      
+    }
+    
+    line <- line + 1
+    if (exists("varNames"))
+      detectionFinished <- TRUE
+    else if (line > length(modelSection))
+      stop("Unable to determine column names for section ", sectionType, ".\n  ", filename)
+    
+  }
+  
+  
+  return(varNames)
+  
 }

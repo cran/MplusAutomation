@@ -5,6 +5,7 @@ readModels <- function(target=getwd(), recursive=FALSE, filefilter) {
 	
 	allFiles <- list()
 	for (curfile in outfiles) {
+    cat("curfile: ", curfile)
 		#if not recursive, then each element is uniquely identified (we hope!) by filename alone
 		if (recursive==FALSE)	listID <- make.names(splitFilePath(curfile)$filename) #each list element is named by the respective file
 		else listID <- make.names(curfile) #each list element is named by the respective file
@@ -12,7 +13,7 @@ readModels <- function(target=getwd(), recursive=FALSE, filefilter) {
 		outfiletext <- scan(curfile, what="character", sep="\n", strip.white=FALSE, blank.lines.skip=FALSE)
 				
 		allFiles[[listID]]$parameters <- extractParameters_1file(outfiletext, curfile)
-		#allFiles[[listID]]$modification.indices <- 
+		allFiles[[listID]]$mod_indices <- extractModIndices_1file(outfiletext, curfile) 
 		allFiles[[listID]]$savedata <- l_getSavedata_Data(curfile, outfiletext)
 		allFiles[[listID]]$summaries <- extractSummaries_1file(outfiletext, curfile)
     
@@ -438,7 +439,10 @@ extractSummaries_1file <- function(outfiletext, filename, extract=c("Title", "LL
 	#allow for analysis type to reside on same line as analysis section header
   analysisSectionStart <- grep("^\\s*analysis\\s*:.*$", inputSection, ignore.case=TRUE, perl=TRUE)
   if (length(analysisSectionStart) > 0) {
-    analysisSectionEnd <- inputHeaders[inputHeaders > analysisSectionStart][1] - 1
+    #check whether analysis is the last input section in order to find section end
+    if (analysisSectionStart < max(inputHeaders)) analysisSectionEnd <- inputHeaders[inputHeaders > analysisSectionStart][1] - 1
+    else analysisSectionEnd <- length(inputSection)
+
     analysisSection <- inputSection[analysisSectionStart:analysisSectionEnd]
     
     analysisTypeLine <- grep("^(\\s*analysis:)*\\s*TYPE\\s*(IS|=|ARE)\\s*.*;$", analysisSection, ignore.case=TRUE, perl=TRUE, value=TRUE) 
@@ -453,8 +457,10 @@ extractSummaries_1file <- function(outfiletext, filename, extract=c("Title", "LL
 	#extract the data type (important for detecting imputation datasets)
 	dataSectionStart <- grep("^\\s*data\\s*:.*$", inputSection, ignore.case=TRUE, perl=TRUE)
 	if (length(dataSectionStart) > 0) {
-		
-		dataSectionEnd <- inputHeaders[inputHeaders > dataSectionStart][1] - 1
+		#check whether data is the last input section in order to find section end
+    if (dataSectionStart < max(inputHeaders)) dataSectionEnd <- inputHeaders[inputHeaders > dataSectionStart][1] - 1
+    else dataSectionEnd <- length(inputSection)
+
 		dataSection <- inputSection[dataSectionStart:dataSectionEnd]
 		
 		dataTypeLine <- grep("^(\\s*data:)*\\s*TYPE\\s*(IS|=|ARE)\\s*.*;$", dataSection, ignore.case=TRUE, perl=TRUE, value=TRUE) 
