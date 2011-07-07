@@ -1,3 +1,30 @@
+testBParamConstraint <- function(bparams, coef1, operator, coef2) {
+  cat("Number of iterations: ", nrow(bparams), "\n")
+  ineq <- eval(parse(text=paste("bparams$", coef1, operator, "bparams$", coef2, sep="")))
+  counts <- table(ineq)
+  names(counts) <- c("Constraint not met", "Constraint met")
+  proportions <- prop.table(counts)
+  cat("\n---\nFrequency table of constraint test:\n\n")
+  print(counts)
+  cat("\n---\nProportion table of constraint test:\n\n")
+  print(proportions)
+}
+
+testBParamCompoundConstraint <- function(bparams, test) {
+  cat("Number of iterations: ", nrow(bparams), "\n")
+  attach(bparams)
+  testResult <- eval(parse(text=test))
+  detach(bparams)
+  
+  counts <- table(testResult)
+  names(counts) <- c("Constraint not met", "Constraint met")
+  proportions <- prop.table(counts)
+  cat("\n---\nFrequency table of constraint test:\n\n")
+  print(counts)
+  cat("\n---\nProportion table of constraint test:\n\n")
+  print(proportions)
+}
+
 friendlyGregexpr <- function(pattern, charvector, perl=TRUE) {
   require(plyr)
   #now create data frame documenting the start and end of all tags
@@ -32,9 +59,9 @@ friendlyGregexpr <- function(pattern, charvector, perl=TRUE) {
   return(convertMatches)
 }
 
-
 #expose as root-level function to be used by model summary extraction
-getMajorSection <- function(sectionHeader, outfiletext) {
+#METHOD NOW DEPRECATED. USING KEYWORD-MATCHING APPROACH BELOW
+getSection_Blanklines <- function(sectionHeader, outfiletext) {
   #helper sub-function to extract a model section given a certain header.
   #the logic here is pretty convoluted. In general, Mplus results sections end with two blank lines
   #but there are problematic exceptions, like Example 9.7. Bengt has said that this formatting error will be fixed
@@ -58,6 +85,13 @@ getMajorSection <- function(sectionHeader, outfiletext) {
     #note short circuit && ensures that we will not go outside subscript bounds for outfiletext
     #check for current line and line+1 blank (two consecutive blank lines)
     if (row < length(outfiletext) && outfiletext[row] == "" && outfiletext[row+1] == "") {
+      #if there are two blank lines, but no data thereafter, treat this as the end of the section
+      if (length(outfiletext) == row+1) {
+        endSection <- row
+        break
+      }
+      
+      #otherwise, double check that line following the double blank is all baps
       #given problems with example 9.7, also test that row+2 is a line of all capital letters
       #start by deleting all spaces
       capsLine <- gsub("\\s+", "", outfiletext[row+2], perl=TRUE)
@@ -83,22 +117,78 @@ getMajorSection <- function(sectionHeader, outfiletext) {
   modelSection <- outfiletext[(beginSection+1):(endSection-1)]
   
   return(modelSection)
-  
-  
-  #considering another approach that just identifies a fixed
-  #number of top-level headers
-  #topLevelHeaders <- c("INPUT INSTRUCTIONS", "SUMMARY OF ANALYSIS",
-  #  "SUMMARY OF DATA FOR THE FIRST DATA SET", "SAMPLE STATISTICS", "TESTS OF MODEL FIT",
-  #  "CLASSIFICATION QUALITY", "CLASSIFICATION OF INDIVIDUALS BASED ON THEIR MOST LIKELY LATENT CLASS MEMBERSHIP",
-  #  "MODEL RESULTS", "LOGISTIC REGRESSION ODDS RATIO RESULTS", "STANDARDIZED MODEL RESULTS", 
-  #  "R-SQUARE", "QUALITY OF NUMERICAL RESULTS", "TECHNICAL \\d+ OUTPUT", "TOTAL, TOTAL INDIRECT, SPECIFIC INDIRECT, AND DIRECT EFFECTS",
-  #  "STANDARDIZED TOTAL, TOTAL INDIRECT, SPECIFIC INDIRECT, AND DIRECT EFFECTS", "RESIDUAL OUTPUT", "MODEL MODIFICATION INDICES")
+    
 }
 
 
+#IRT PARAMETERIZATION IN TWO-PARAMETER LOGISTIC (or PROBIT) METRIC
+#LOGISTIC REGRESSION ODDS RATIO RESULTS
+#ALTERNATIVE PARAMETERIZATIONS FOR THE CATEGORICAL LATENT VARIABLE REGRESSION
+
+getSection <- function(sectionHeader, outfiletext, headers="standard") {
+  #encode the top-level major headers here, but allow for custom headers to be passed in
+  if (headers[1] == "standard") headers <- c("INPUT INSTRUCTIONS", "SUMMARY OF ANALYSIS",
+    "SUMMARY OF DATA FOR THE FIRST DATA SET", "SUMMARY OF DATA FOR THE FIRST REPLICATION",
+    "SUMMARY OF MISSING DATA PATTERNS FOR THE FIRST REPLICATION",
+    "SUMMARY OF MISSING DATA PATTERNS",
+    "COVARIANCE COVERAGE OF DATA FOR THE FIRST REPLICATION",
+    "SAMPLE STATISTICS", "SAMPLE STATISTICS FOR THE FIRST REPLICATION",
+    "CROSSTABS FOR CATEGORICAL VARIABLES", "UNIVARIATE PROPORTIONS AND COUNTS FOR CATEGORICAL VARIABLES",
+    "RANDOM STARTS RESULTS RANKED FROM THE BEST TO THE WORST LOGLIKELIHOOD VALUES",
+    "TESTS OF MODEL FIT", "MODEL FIT INFORMATION", "CLASSIFICATION QUALITY",
+    "FINAL CLASS COUNTS AND PROPORTIONS FOR THE LATENT CLASSES",
+    "FINAL CLASS COUNTS AND PROPORTIONS FOR THE LATENT CLASS PATTERNS",
+    "CLASSIFICATION OF INDIVIDUALS BASED ON THEIR MOST LIKELY LATENT CLASS MEMBERSHIP",
+    "MODEL RESULTS", "LOGISTIC REGRESSION ODDS RATIO RESULTS", "RESULTS IN PROBABILITY SCALE",
+    "IRT PARAMETERIZATION IN TWO-PARAMETER LOGISTIC METRIC",
+    "LATENT CLASS ODDS RATIO RESULTS", "LOGRANK OUTPUT", "STANDARDIZED MODEL RESULTS", 
+    "R-SQUARE", "QUALITY OF NUMERICAL RESULTS", "TECHNICAL OUTPUT", "TECHNICAL \\d+ OUTPUT",
+    "TECHNICAL 5/6 OUTPUT", 
+    "TOTAL, TOTAL INDIRECT, SPECIFIC INDIRECT, AND DIRECT EFFECTS",
+    "STANDARDIZED TOTAL, TOTAL INDIRECT, SPECIFIC INDIRECT, AND DIRECT EFFECTS", "CONFIDENCE INTERVALS OF MODEL RESULTS",
+    "CONFIDENCE INTERVALS FOR THE LOGISTIC REGRESSION ODDS RATIO RESULTS",
+    "CREDIBILITY INTERVALS OF MODEL RESULTS",
+    "CONFIDENCE INTERVALS OF STANDARDIZED MODEL RESULTS",
+    "CREDIBILITY INTERVALS OF STANDARDIZED MODEL RESULTS",
+    "CONFIDENCE INTERVALS OF TOTAL, TOTAL INDIRECT, SPECIFIC INDIRECT, AND DIRECT EFFECTS",
+    "CONFIDENCE INTERVALS OF STANDARDIZED TOTAL, TOTAL INDIRECT, SPECIFIC INDIRECT,", #omitted "AND DIRECT EFFECTS"
+    "RESIDUAL OUTPUT", "MODEL MODIFICATION INDICES", "MODEL COMMAND WITH FINAL ESTIMATES USED AS STARTING VALUES",
+    "FACTOR SCORE INFORMATION (COMPLETE DATA)", "SUMMARY OF FACTOR SCORES", "PLOT INFORMATION",
+    "Beginning Time:\\s*\\d+:\\d+:\\d+", "MUTHEN & MUTHEN")
+
+
+  beginSection <- grep(sectionHeader, outfiletext, perl=TRUE)[1]
+
+  #if section header cannot be found, then bail out
+  if (is.na(beginSection)) return(NULL)
+  
+  #form alternation pattern for regular expression (currently allows for leading and trailing spaces
+  headerRegexpr <- paste("(", paste(gsub("(.*)", "^\\\\s*\\1\\\\s*$", headers, perl=TRUE), sep="", collapse="|"), ")", sep="") 
+  headerLines <- grep(headerRegexpr, outfiletext, perl=TRUE)
+  subsequentHeaders <- which(headerLines > beginSection)
+
+  if (length(subsequentHeaders) == 0) nextHeader <- length(outfiletext) #just return the whole enchilada
+  else nextHeader <- headerLines[subsequentHeaders[1]] - 1
+
+  #fallback to blank line based search if the keyword-matching method fails.
+  #note that this could also occur if the section requested is the last section of the file
+  #but this should (almost) always be MUTHEN & MUTHEN, which terminates the file
+#ACTUALLY, this code is somewhat pointless. What will happen instead is that an incorrectly matched
+#section will contain the next section until a familiar header is found.
+  
+#  if (length(subsequentHeaders) == 0) {
+#    warning(paste("Falling back to blank line method for detecting output sections.\n", 
+#            "  Please forward the output file and this message to Michael Hallquist: michael.hallquist@gmail.com\n", 
+#            "  This will help to improve future iterations of the package.", sep=""))
+#    return(getSection_Blanklines(sectionHeader, outfiletext))
+#  }
+    
+  return(outfiletext[(beginSection+1):nextHeader])
+  
+}
+
 #could this also be used by runModels to locate input files?
 #seems like that function would do well to allow for directories and single files, too.
-
 getOutFileList <- function(target, recursive=FALSE, filefilter) {
   #This is a helper function used by extractModelSummaries and extractModelParameters.
   #It determines whether the target is a single file or a directory.
@@ -173,7 +263,7 @@ splitFilePath <- function(abspath) {
 
 
 #helper function to detect model results columns
-detectColumnNames <- function(modelSection, sectionType="model_results") {
+detectColumnNames <- function(filename, modelSection, sectionType="model_results") {
   
   detectionFinished <- FALSE
   line <- 1
@@ -192,11 +282,20 @@ detectColumnNames <- function(modelSection, sectionType="model_results") {
       if (identical(thisLine, c("Posterior", "One-Tailed", "95%", "C.I.")) &&
           identical (nextLine, c("Estimate", "S.D.", "P-Value", "Lower", "2.5%", "Upper", "2.5%")))
         varNames <- c("param", "est", "posterior_sd", "pval", "lower_2.5ci", "upper_2.5ci")
+
+      #Monte Carlo output (e.g., UG ex12.4)
+      if (identical(thisLine, c("ESTIMATES", "S.", "E.", "M.", "S.", "E.", "95%", "%", "Sig")) &&
+          identical (nextLine, c("Population", "Average", "Std.", "Dev.", "Average", "Cover", "Coeff")))
+        varNames <- c("param", "population", "average", "population_sd", "average_se", "mse", "cover_95", "pct_sig_coef")      
       
       #Usual five-column output that applies to most unstandardized and standardized sections in Mplus 5 and later
       else if (identical(thisLine, c("Two-Tailed")) && 
           identical(nextLine, c("Estimate", "S.E.", "Est./S.E.", "P-Value")))
         varNames <- c("param", "est", "se", "est_se", "pval")
+
+      #Just estimate available, such as in cases of nonconverged models
+      else if (identical(thisLine, c("Estimate")))
+        varNames <- c("param", "est")      
       
       #Old 5-column standardized output from Mplus 4.2
       else if (identical(thisLine, c("Estimates", "S.E.", "Est./S.E.", "Std", "StdYX")))
@@ -212,7 +311,12 @@ detectColumnNames <- function(modelSection, sectionType="model_results") {
       #run 9.1b with MUML and OUTPUT:STANDARDIZED
       else if (identical(thisLine, c("StdYX", "Std")) && identical (nextLine, c("Estimate", "Estimate")))
         varNames <- c("param", "stdyx", "std")
-    
+
+      #Also, even with new versions of Mplus (e.g., 6.11), sometimes have stdyx, stdy, and std in old-style column format
+      #The current case I'm aware of is the use of boostrapped confidence intervals (BOOTSTRAP + OUTPUT:CINTERVAL).
+      else if (identical(thisLine, c("StdYX", "StdY", "Std")) && identical (nextLine, c("Estimate", "Estimate", "Estimate")))
+        varNames <- c("param", "stdyx", "stdy", "std")
+          
     }
     else if (sectionType == "mod_indices") {
       if (identical(thisLine, c("M.I.", "E.P.C.", "Std", "E.P.C.", "StdYX", "E.P.C.")))
@@ -221,6 +325,11 @@ detectColumnNames <- function(modelSection, sectionType="model_results") {
       else if (identical(thisLine, c("M.I.", "E.P.C.")))
       varNames <- c("modV1", "operator", "modV2", "MI", "EPC")
       
+    }
+    else if (sectionType == "confidence_intervals"){
+      if (identical(thisLine, c("Lower",".5%","Lower","2.5%","Lower","5%",      
+                        "Estimate","Upper","5%","Upper","2.5%","Upper",".5%" )))
+        varNames <- c("param", "low.5", "low2.5", "low5", "est", "up5", "up2.5", "up.5") 
     }
     
     line <- line + 1
@@ -231,7 +340,12 @@ detectColumnNames <- function(modelSection, sectionType="model_results") {
     
   }
   
-  
   return(varNames)
   
+}
+
+trimSpace <- function(string) {
+  string <- sub("^\\s*", "", string, perl=TRUE)
+  string <- sub("\\s*$","", string, perl=TRUE)
+  return(string)
 }

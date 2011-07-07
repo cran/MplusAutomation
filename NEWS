@@ -1,6 +1,17 @@
+Version 0.4-3
+- throw specific error when createModels encounters a template file with no body tags.
+- changed names of return list from fileinfo: change doc
+- initial support of reading Bayesian parameters from SAVEDATA BPARAMETERS command.
+- provide inequality constraint tests for bayesian parameter estimates: (van de Schoot, Hoijtink, Hallquist, & Boelen, submitted) 
+- initial support of model parameter extraction for Monte Carlo output (MONTECARLO: and MODEL POPULATION:) using extractModelParameters.
+- initial support of unstandardized confidence interval output from OUTPUT:CINTERVAL (thanks to Stephen Tueller for initial development of this)
+- reworked detection of major output sections to match a fixed list of options (decrease ambiguity)
+- bugfix: extractModelParameters correctly handles nonconverged output, where only estimates are available.
+- savedata file information now included in readModels list in element savedata_info.  
+
 Version 0.4-2
 - initial support for extracting model modification indices, when available: extractModIndices
-- bugfix: Corrected problem with extractModelSummaries failing when analyis or data sections were at the end of the input.
+- bugfix: Corrected problem with extractModelSummaries failing when analysis or data sections were at the end of the input.
 - bugfix: Corrected whitespace stripping for cases where leading and trailing space is present.
 
 Version 0.4-1

@@ -5,17 +5,19 @@ readModels <- function(target=getwd(), recursive=FALSE, filefilter) {
 	
 	allFiles <- list()
 	for (curfile in outfiles) {
-    cat("curfile: ", curfile)
+    cat("curfile: ", curfile, "\n")
 		#if not recursive, then each element is uniquely identified (we hope!) by filename alone
 		if (recursive==FALSE)	listID <- make.names(splitFilePath(curfile)$filename) #each list element is named by the respective file
 		else listID <- make.names(curfile) #each list element is named by the respective file
 
 		outfiletext <- scan(curfile, what="character", sep="\n", strip.white=FALSE, blank.lines.skip=FALSE)
-				
-		allFiles[[listID]]$parameters <- extractParameters_1file(outfiletext, curfile)
-		allFiles[[listID]]$mod_indices <- extractModIndices_1file(outfiletext, curfile) 
-		allFiles[[listID]]$savedata <- l_getSavedata_Data(curfile, outfiletext)
-		allFiles[[listID]]$summaries <- extractSummaries_1file(outfiletext, curfile)
+
+    allFiles[[listID]]$summaries <- extractSummaries_1file(outfiletext, curfile)
+    allFiles[[listID]]$parameters <- extractParameters_1file(outfiletext, curfile)
+		allFiles[[listID]]$mod_indices <- extractModIndices_1file(outfiletext, curfile)
+    allFiles[[listID]]$savedata_info <- fileInfo <- l_getSavedata_Fileinfo(curfile, outfiletext)    
+		allFiles[[listID]]$savedata <- l_getSavedata_readRawFile(curfile, outfiletext, format="fixed", fileName=fileInfo[["fileName"]], varNames=fileInfo[["fileVarNames"]], varWidths=fileInfo[["fileVarWidths"]]) 
+    allFiles[[listID]]$bparameters <- l_getSavedata_readRawFile(curfile, outfiletext, format="free", fileName=fileInfo[["bayesFile"]], varNames=fileInfo[["bayesVarNames"]]) 
     
     #cleanup summary columns containing only NAs
     for (col in names(allFiles[[listID]]$summaries)) {
@@ -399,12 +401,12 @@ extractSummaries_1file <- function(outfiletext, filename, extract=c("Title", "LL
   #preallocates list
   #arglist = vector("list", length(extract))  
   arglist <- list()
-    
+  
   #PROCESS FIELDS OF INTEREST IN INPUT INSTRUCTIONS SECTION
   startInput <- grep("^\\s*INPUT INSTRUCTIONS\\s*$", outfiletext, ignore.case=TRUE, perl=TRUE)
   if (length(startInput) == 0) warning("Could not find beginning of input")
      
-  endInput <- grep("^\\s*(INPUT READING TERMINATED NORMALLY|\\d+ WARNING\\(S\\) FOUND IN THE INPUT INSTRUCTIONS)\\s*$", outfiletext, ignore.case=TRUE, perl=TRUE)
+  endInput <- grep("^\\s*(INPUT READING TERMINATED NORMALLY|\\d+ WARNING\\(S\\) FOUND IN THE INPUT INSTRUCTIONS|\\*\\*\\* ERROR.*)\\s*$", outfiletext, ignore.case=TRUE, perl=TRUE)
   if (length(endInput) == 0) warning("Could not find end of input")
 
   inputSection <- outfiletext[(startInput+1):(endInput-1)]
@@ -474,7 +476,7 @@ extractSummaries_1file <- function(outfiletext, filename, extract=c("Title", "LL
 	#END INPUT INSTRUCTIONS PROCESSING  
 
   #BEGIN ANALYSIS SUMMARY PROCESSING
-  analysisSummarySection <- getMajorSection("^\\s*SUMMARY OF ANALYSIS\\s*$", outfiletext)
+  analysisSummarySection <- getSection("^\\s*SUMMARY OF ANALYSIS\\s*$", outfiletext)
 
   if ("Estimator" %in% extract)
     arglist$Estimator <- extractValue(pattern="^\\s*Estimator\\s*", analysisSummarySection, filename, type="str")
@@ -504,8 +506,9 @@ extractSummaries_1file <- function(outfiletext, filename, extract=c("Title", "LL
     
     efaList <- list()
 		for (thisFactor in 1:length(factorSeq)) {
+
 			#subset output by starting text to be searched at the point where factor output begins
-      modelFitSection <- getMajorSection("^(TESTS OF MODEL FIT|MODEL FIT INFORMATION)$", outfiletext[EFASections[thisFactor]:length(outfiletext)])
+      modelFitSection <- getSection_Blanklines("^(TESTS OF MODEL FIT|MODEL FIT INFORMATION)$", outfiletext[EFASections[thisFactor]:length(outfiletext)])
       
       efaList[[thisFactor]] <- extractSummaries_1section(modelFitSection, arglistBase, filename)
       efaList[[thisFactor]]$NumFactors <- factorSeq[thisFactor]
@@ -515,12 +518,12 @@ extractSummaries_1file <- function(outfiletext, filename, extract=c("Title", "LL
 	}
 	else {
 
-		modelFitSection <- getMajorSection("^(TESTS OF MODEL FIT|MODEL FIT INFORMATION)$", outfiletext)
+		modelFitSection <- getSection("^(TESTS OF MODEL FIT|MODEL FIT INFORMATION)$", outfiletext)
     arglist <- extractSummaries_1section(modelFitSection, arglist, filename)
 	}
 
   #CLASSIFICATION QUALITY  
-  classificationQuality <- getMajorSection("^CLASSIFICATION QUALITY$", outfiletext)
+  classificationQuality <- getSection("^CLASSIFICATION QUALITY$", outfiletext)
   
   if (!is.null(classificationQuality))
     arglist$Entropy <- extractValue(pattern="^\\s*Entropy\\s*", classificationQuality, filename, type="dec")
@@ -640,135 +643,9 @@ extractModelSummaries <- function(target=getwd(), recursive=FALSE, filefilter) {
 	return(details)
 }
 
-getSavedata_Data <- function(outfile) {
-  #exposed wrapper for l_getSavedata_Data, which pulls saveData data into data.frame
-	if(!file.exists(outfile)) {
-		stop("Cannot locate outfile: ", outfile)
-	}
-		
-  outfiletext <- scan(outfile, what="character", sep="\n", strip.white=FALSE)
-  
-  if (length(outfiletext) == 0) {
-    warning("Empty outfile")
-    return(NULL)
-  }
-  
-  return(l_getSavedata_Data(outfile, outfiletext))
-}
-
-l_getSavedata_Data <- function(outfile, outfiletext) {
-
-  #outfile should be a relative or absolute path to the .out file with the savedata section to be parsed
-  #if no directory is provided, the file is assumed with be within the working directory getwd().
-
-  outfileDirectory <- splitFilePath(outfile)$directory
-  fileInfo <- l_getSavedata_Fileinfo(outfile, outfiletext)
-
-  #if fileinfo could not be loaded (no savedata section), then abort data pull
-  if (is.null(fileInfo)) return(NULL)
-
-  savedataSplit <- splitFilePath(fileInfo$fileName)
-  
-  #if outfile target directory is non-empty, but savedataFile is without directory, then append
-  #outfile directory to savedataFile. This ensures that R need not be in the working directory
-  #to read the savedataFile. But if savedataFile has an absolute directory, don't append
-
-  #if savedata directory is present and absolute, or if no directory in outfile, just use filename as is
-  if (!is.na(savedataSplit$directory) && savedataSplit$absolute)
-    savedataFile <- fileInfo$fileName #just use savedata filename if has absolute path
-  else if (is.na(outfileDirectory))
-    savedataFile <- fileInfo$fileName #just use savedata filename if outfile is missing path (working dir)
-  else
-    savedataFile <- file.path(outfileDirectory, fileInfo$fileName) #savedata path relative or absent and outfile dir is present
-
-  #cat("Outfile dir: ", outfileDirectory, "\n")
-  #cat("Savedata directory: ", savedataSplit$directory, "\n")
-  #cat("concat result: ", savedataFile, "\n")
-
-
-  #need to read as fixed width format given the way Mplus left-aligns missing vals (*)
-  #dataset <- read.table(file=file.path(path, fileInfo$fileName), header=FALSE, 
-  #    na.strings="*", col.names=fileInfo$varNames)
-
-  #strip.white is necessary for na.strings to work effectively with fixed width fields
-  #otherwise would need something like "*       " for na.strings
-  dataset <- read.fwf(file=savedataFile, widths=fileInfo$varWidths, header=FALSE,
-      na.strings="*", col.names=fileInfo$varNames, strip.white=TRUE)
-  
-  return(dataset)
-}
 
 addHeaderToSavedata <- function(outfile, directory=getwd()) {
   
-}
-
-getSavedata_Fileinfo <- function(outfile) {
-  #wraps l_getSavedata_Fileinfo by checking for the outfile and reading it as a character vector.
-  
-  #note that outfile is assumed to be a full path to the file (or to be in the current working directory)
-  #helper function to parse output from savedata command
-  #if returnData is true, the data file created will be read in as an R data frame
-  #if returnData is false, just the variable names are returned
-  #considering using addHeader to prepend a header row
-  
-  if(!file.exists(outfile)) {
-    stop("Cannot locate outfile: ", outfile)
-  }
-  
-  outfiletext <- scan(outfile, what="character", sep="\n", strip.white=FALSE)
-  
-  if (length(outfiletext) == 0) {
-    warning("Empty outfile")
-    return(NULL)
-  }
-
-  return(l_getSavedata_Fileinfo(outfile, outfiletext))
-  
-}
-
-#local function that does the work of getSaveData_Fileinfo
-#split out so that getSaveData_Fileinfo is exposed to user, but parsing function can be used by readModels
-l_getSavedata_Fileinfo <- function(outfile, outfiletext) {
- 
-  require(gsubfn)
-  savedataStart <- grep("^\\s*SAVEDATA INFORMATION\\s*$", outfiletext, ignore.case=TRUE, perl=TRUE)
-  savedataEnd <- grep("^\\s*Save file record length\\s+\\d+$", outfiletext, ignore.case=TRUE, perl=TRUE)
-  
-  
-  #need to have beginning and end
-  if (! (length(savedataStart) > 0 && length(savedataEnd) > 0)) {
-    #omit warning -- probably more common for section to be missing
-		#warning("Unable to locate a SAVEDATA section in output file: ", outfile)
-    return(NULL)
-  }
-  
-  savedataSection <- outfiletext[savedataStart:savedataEnd]
-
-  orderStart <- grep("^\\s*Order and format of variables\\s*$", savedataSection, ignore.case=TRUE, perl=TRUE)
-  if (!length(orderStart) > 0) {
-    #save data section exists, but doesn't contain this output. Maybe other savedata stuff, like bayesian, tech4, etc.
-    return(NULL)
-  }
-  
-  saveFileStart <- grep("^\\s*Save file\\s*$", savedataSection, ignore.case=TRUE, perl=TRUE)
-
-  #dump any blank fields because they will cause nulls in the names, formats, widths.
-  #This is handled by blank.lines.skip=TRUE in wrappers, but readModels needs to retain blank lines
-  #for other functions, so strip here.
-  variablesToParse <- savedataSection[(orderStart+1):(saveFileStart-1)]
-  variablesToParse <- variablesToParse[variablesToParse != ""]
-  
-  variableNames <- sub("^\\s*([\\w\\d\\.]+)\\s+[\\w\\d\\.]+\\s*$", "\\1", variablesToParse, perl=TRUE)
-  variableFormats <- sub("^\\s*[\\w\\d\\.]+\\s+([\\w\\d\\.]+)\\s*$", "\\1", variablesToParse, perl=TRUE)
-  
-  variableWidths <- strapply(variableFormats, "[IEFG]+(\\d+)(\\.\\d+)*", as.numeric, perl=TRUE, simplify=TRUE)
-  
-  #trim leading and trailing space from the filename
-  fileName <- sub("^\\s*","", savedataSection[saveFileStart+1], perl=TRUE)
-  fileName <- sub("\\s*$","", fileName, perl=TRUE)
-  
-  #return the file information as a list
-  return(list(fileName=fileName, varNames=variableNames, varFormats=variableFormats, varWidths=variableWidths))
 }
 
 

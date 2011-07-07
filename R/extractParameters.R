@@ -3,7 +3,7 @@
 extractParameters_1chunk <- function(filename, thisChunk, columnNames) {
   if (missing(thisChunk) || is.na(thisChunk) || is.null(thisChunk)) stop("Missing chunk to parse.\n  ", filename)
   if (missing(columnNames) || is.na(columnNames) || is.null(columnNames)) stop("Missing column names for chunk.\n  ", filename)
-
+  
   #okay to match beginning and end of line because strip.white used in scan
   matches <- gregexpr("^\\s*((Means|Thresholds|Intercepts|Variances|Residual Variances|New/Additional Parameters)|([\\w_\\d+\\.#]+\\s+(BY|WITH|ON|\\|)))\\s*$", thisChunk, perl=TRUE)
   
@@ -16,7 +16,11 @@ extractParameters_1chunk <- function(filename, thisChunk, columnNames) {
   #only keep lines with a single match
   #this removes rows that are -1 from gregexpr
   convertMatches <- subset(convertMatches, start > 0)
-  
+
+  #sometimes chunks have no parameters because they are empty. e.g., stdyx for ex7.30
+  #in this case, return null
+  if (nrow(convertMatches)==0) return(NULL)
+    
   #develop a dataframe that divides into keyword matches versus variable matches
   convertMatches <- ddply(convertMatches, "startline", function(row) {
         #pull the matching keyword based on the start/end attributes from gregexpr
@@ -95,13 +99,18 @@ extractParameters_1chunk <- function(filename, thisChunk, columnNames) {
 
 extractParameters_1section <- function(filename, modelSection, sectionName) {
   #extract model parameters for a given model results section. A section contains complete output for all parameters of a given type
-  #(unstandardized, stdyx, stdy, or std) for a single file.
+  #(unstandardized, ci, stdyx, stdy, or std) for a single file.
   #section name is used to name the list element of the returned list
   
   #first trim all leading and trailing spaces (new under strip.white=FALSE)
   modelSection <- gsub("(^\\s+|\\s+$)", "", modelSection, perl=TRUE)
 
-  columnNames <- detectColumnNames(modelSection)
+  #detectColumn names sub-divides (perhaps unnecessarily) the matches based on the putative section type of the output
+  #current distinctions include modification indices, confidence intervals, and model results.
+  if (sectionName == "ci.unstandardized") sectionType <- "confidence_intervals"
+  else sectionType <- "model_results"
+  
+  columnNames <- detectColumnNames(filename, modelSection, sectionType)
   
   #Detect model section dividers
   #These include: 1) multiple groups: Group XYZ
@@ -115,7 +124,7 @@ extractParameters_1section <- function(filename, modelSection, sectionName) {
   latentClassMatches <- grep("^\\s*Latent Class (Pattern )*(\\d+\\s*)+$", modelSection, ignore.case=TRUE, perl=TRUE)
   multipleGroupMatches <- grep("^\\s*Group \\w+\\s*$", modelSection, ignore.case=TRUE, perl=TRUE)
   catLatentMatches <- grep("^\\s*Categorical Latent Variables\\s*$", modelSection, ignore.case=TRUE)
-  
+
   topLevelMatches <- sort(c(betweenWithinMatches, latentClassMatches, multipleGroupMatches, catLatentMatches))
   
   if (length(topLevelMatches) > 0) {
@@ -256,38 +265,42 @@ extractParameters_1file <- function(outfiletext, filename, resultType) {
   }
   
   allSections <- list() #holds parameters for all identified sections
-  
-  unstandardizedSection <- getMajorSection("^MODEL RESULTS$", outfiletext)
+  unstandardizedSection <- getSection("^MODEL RESULTS$", outfiletext)
   if (!is.null(unstandardizedSection)) allSections <- appendListElements(allSections, extractParameters_1section(filename, unstandardizedSection, "unstandardized"))
+
+  standardizedSection <- getSection("^STANDARDIZED MODEL RESULTS$", outfiletext)
   
-  beginStandardizedSection <- grep("^STANDARDIZED MODEL RESULTS$", outfiletext)
-  
-  if (length(beginStandardizedSection) > 0) {
+  if (!is.null(standardizedSection)) {
     #check to see if standardized results are divided by standardization type (new format)
-    remainder <- outfiletext[(beginStandardizedSection+1):length(outfiletext)]
-    
-    #could shift extractParameters_1section to receive the section header and pull out text there. Might streamline this.
-    
-    stdYXSection <- getMajorSection("^STDYX Standardization$", remainder)
+        
+    #probably somewhat kludgy to use the blanklines code here, but it gets the job done 
+    #ultimately probably better to search for the three sections, split them, etc.  
+    #gregexpr("STD[YX]*Standardization", capsLine, perl=TRUE)   
+      
+    stdYXSection <- getSection_Blanklines("^STDYX Standardization$", standardizedSection)
     if (!is.null(stdYXSection)) allSections <- appendListElements(allSections, extractParameters_1section(filename, stdYXSection, "stdyx.standardized"))
     
-    stdYSection <- getMajorSection("^STDY Standardization$", remainder)
+    stdYSection <- getSection_Blanklines("^STDY Standardization$", standardizedSection)
     if (!is.null(stdYSection)) allSections <- appendListElements(allSections, extractParameters_1section(filename, stdYSection, "stdy.standardized"))
     
-    stdSection <- getMajorSection("^STD Standardization$", remainder)
+    stdSection <- getSection_Blanklines("^STD Standardization$", standardizedSection)
     if (!is.null(stdSection)) allSections <- appendListElements(allSections, extractParameters_1section(filename, stdSection, "std.standardized"))
     
     #if all individual standardized sections are absent, but the standardized section is present, must be old-style
     #combined standardized section (affects WLS and MUML, too). Extract and process old section. 
     if (all(is.null(stdYXSection), is.null(stdYSection), is.null(stdSection))) {
-      oldStdSection <- getMajorSection("^STANDARDIZED MODEL RESULTS$", outfiletext)
-      if (!is.null(oldStdSection)) allSections <- appendListElements(allSections, extractParameters_1section(filename, oldStdSection, "standardized")) #this section name should never survive the call
+      allSections <- appendListElements(allSections, extractParameters_1section(filename, standardizedSection, "standardized")) #this section name should never survive the call
     }
     
   }
-  
+ 
+  #confidence intervals for usual output, credibility intervals for bayesian output
+  ciSection <- getSection("^(CONFIDENCE INTERVALS OF MODEL RESULTS|CREDIBILITY INTERVALS OF MODEL RESULTS)$", outfiletext)
+  if (!is.null(ciSection)) allSections <- appendListElements(allSections, extractParameters_1section(filename, ciSection, "ci.unstandardized"))
+    
   listOrder <- c()
   if ("unstandardized" %in% names(allSections)) listOrder <- c(listOrder, "unstandardized")
+  if ("ci.unstandardized" %in% names(allSections)) listOrder <- c(listOrder, "ci.unstandardized")
   if ("stdyx.standardized" %in% names(allSections)) listOrder <- c(listOrder, "stdyx.standardized")
   if ("stdy.standardized" %in% names(allSections)) listOrder <- c(listOrder, "stdy.standardized")
   if ("std.standardized" %in% names(allSections)) listOrder <- c(listOrder, "std.standardized")

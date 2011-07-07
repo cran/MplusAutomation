@@ -125,6 +125,8 @@ parseTags <- function(bodySection, initCollection) {
   bodyTagRegex <- "\\[\\[\\s*[\\s\\w=><!#/]+\\s*\\]\\]"
   bodyMatches <- friendlyGregexpr(bodyTagRegex, bodySection, perl=TRUE)
   
+  if (is.null(bodyMatches)) stop("No tags found in body section of template file.")
+  
   bodyMatches$tagType <- classifyTags(bodyMatches$tag, initCollection$iterators)  
   #okay, now every tag is categorized
   #the notion here is to substitute in the running value for a given variable
@@ -136,7 +138,6 @@ parseTags <- function(bodySection, initCollection) {
         return(sub("\\[\\[\\s*([\\s\\w=><!#/]+)\\s*\\]\\]", "\\1", tag, perl=TRUE))
       })
   
- 
   #return a three-element list with constituent data frames for init and body tags.
 	return(list(initTags=initMatches, bodyTags=bodyMatches, bodyText=bodySection))  
   
@@ -468,7 +469,6 @@ replaceBodyTags <- function(bodySection, bodyTags, initCollection) {
   #if so, replace at the last minute (check this in Init)
   
   #set a "deferred" status in currentValue if replacement contains tags
-  
   targetTags <- subset(bodyTags, tagType %in% c("simple", "iterator", "array"))
   targetTags$rownumber <- 1:nrow(targetTags)
     
@@ -618,12 +618,6 @@ evaluateConditional <- function(tag, initCollection) {
   #return a boolean value indicating whether the conditional is true
   return(eval(parse(text=paste("initCollection$curItPos[conditional[1]]", conditional[2], conditional[3], sep=""))))
   
-}
-
-trimSpace <- function(string) {
-	string <- sub("^\\s*", "", string, perl=TRUE)
-	string <- sub("\\s*$","", string, perl=TRUE)
-	return(string)
 }
 
 clipString <- function(string, start, end) {

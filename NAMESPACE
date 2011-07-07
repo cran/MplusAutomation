@@ -5,5 +5,6 @@ import(relimp)
 
 export(runModels, runModels_Interactive, extractModelSummaries, 
 	extractModelParameters, extractModIndices, getSavedata_Data, getSavedata_Fileinfo,
-	showSummaryTable, LatexSummaryTable, HTMLSummaryTable,
-	createModels, prepareMplusData, readModels)
+	getSavedata_Bparams, showSummaryTable, LatexSummaryTable, HTMLSummaryTable,
+	createModels, prepareMplusData, readModels, testBParamConstraint,
+	testBParamCompoundConstraint)

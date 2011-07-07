@@ -2,12 +2,12 @@ extractModIndices_1file <- function(outfiletext, filename) {
 
   if (missing(outfiletext) || is.na(outfiletext) || is.null(outfiletext)) stop("Missing mod indices to parse.\n  ", filename)
     
-  MISection <- getMajorSection("^MODEL MODIFICATION INDICES$", outfiletext)
+  MISection <- getSection("^MODEL MODIFICATION INDICES$", outfiletext)
   
   if (is.null(MISection)) return(NULL) #model does not contain modindices
   
   MISection <- gsub("(^\\s+|\\s+$)", "", MISection, perl=TRUE)
-  columnNames <- detectColumnNames(MISection, "mod_indices")
+  columnNames <- detectColumnNames(filename, MISection, "mod_indices")
   
   if (is.na(columnNames) || is.null(columnNames)) stop("Missing column names for mod indices.\n  ", filename)
   
