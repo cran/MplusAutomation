@@ -32,9 +32,11 @@ and loads the dataset accordingly.
 \seealso{
 \code{\link{getSavedata_Fileinfo}}
 }
-%\examples{
-%fileInfo <- getSavedata_Data("C:/Program Files/Mplus/Test Output.out")
-%}
+\examples{
+\dontrun{
+savedat <- getSavedata_Data("C:/Program Files/Mplus/Test Output.out")
+}
+}
 % Add one or more standard keywords, see file 'KEYWORDS' in the
 % R documentation directory.
 \keyword{interface}

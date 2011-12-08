@@ -37,8 +37,15 @@ of draws consistent with the hypothesis.
 \seealso{
 \code{\link{testBParamConstraint}}
 }
-%\examples{
-%}
+\examples{
+\dontrun{
+btest <- getSavedata_Bparams("model vb1_simpel_b.out"))
+
+testBParametersCompoundConstraint(btest, 
+"(STDYX_STAITOT.ON.CG > STDYX_STAITOT.ON.UCG) & (STDYX_BDIM.ON.CG > STDYX_BDIM.ON.UCG)")
+}
+
+}
 % Add one or more standard keywords, see file 'KEYWORDS' in the
 % R documentation directory.
 \keyword{interface}

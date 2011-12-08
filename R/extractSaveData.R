@@ -36,7 +36,8 @@ l_getSavedata_Fileinfo <- function(outfile, outfiletext) {
       "Sample/H1/Pooled-Within Matrix", #sample
       "Bayesian Parameters", #bparameters
       "Within and between sample statistics with Weight matrix", #swmatrix
-      "Estimates" #estimates
+      "Estimates", #estimates
+	  "Order of variables" #monte carlo
   )
   
   #extract entire savedata section
@@ -82,6 +83,27 @@ l_getSavedata_Fileinfo <- function(outfile, outfiletext) {
     #trim leading and trailing space from the filename
     fileName <- trimSpace(fileSection[saveFileStart+1])
     
+  }
+  
+  #Monte carlo output
+  mcSection <- getSection("^\\s*Order of variables\\s*$", savedataSection, sectionStarts)
+  
+  if (!is.null(mcSection)) {
+	  #save data section exists, but doesn't contain this output. Maybe other savedata stuff, like bayesian, tech4, etc.
+	  saveFileStart <- grep("^\\s*Save file\\s*$", mcSection, ignore.case=TRUE, perl=TRUE)
+	  
+	  #dump any blank fields because they will cause nulls in the names, formats, widths.
+	  #This is handled by blank.lines.skip=TRUE in wrappers, but readModels needs to retain blank lines
+	  #for other functions, so strip here.
+	  variablesToParse <- mcSection[1:(saveFileStart-1)]
+	  variablesToParse <- variablesToParse[variablesToParse != ""]
+	  
+	  #just have variable names, no formats
+    fileVarNames <- trimSpace(variablesToParse)
+	  
+	  #trim leading and trailing space from the filename
+	  fileName <- trimSpace(mcSection[saveFileStart+1])
+	  
   }
   
   #Bayesian parameters section
@@ -140,7 +162,9 @@ getSavedata_Data <- function(outfile) {
   fileInfo <- l_getSavedata_Fileinfo(outfile, outfiletext)
   
   if (is.null(fileInfo) || all(is.na(fileInfo))) return(NULL)
-  else return(l_getSavedata_readRawFile(outfile, outfiletext, format="free", fileName=fileInfo[["fileName"]], 
+  else if (is.na(fileInfo[["fileVarWidths"]])) return(l_getSavedata_readRawFile(outfile, outfiletext, format="free", fileName=fileInfo[["fileName"]], 
+            varNames=fileInfo[["fileVarNames"]]))
+  else return(l_getSavedata_readRawFile(outfile, outfiletext, format="fixed", fileName=fileInfo[["fileName"]], 
             varNames=fileInfo[["fileVarNames"]], varWidths=fileInfo[["fileVarWidths"]]))
 }
 
@@ -194,12 +218,32 @@ l_getSavedata_readRawFile <- function(outfile, outfiletext, format="fixed", file
   #    na.strings="*", col.names=fileInfo$varNames)
   
   if (format == "free") {
-    dataset <- read.table(file=savedataFile, header=FALSE, na.strings="*", col.names=varNames, strip.white=TRUE)    
+    #handle case where filename contains * indicating Monte Carlo/MI dataset with reps
+    if (grepl("\\*", savedataSplit$filename, perl=TRUE)) {
+      #resplit now that outfileDir and savedataDir are assembled
+      resplit <- splitFilePath(savedataFile)
+      
+      #patch file pattern to match perl syntax
+      pat <- gsub("\\.", "\\\\.", resplit$filename, perl=TRUE)
+      pat <- gsub("\\*", "\\\\d+", pat, perl=TRUE)
+      fileNames <- list.files(path=resplit$directory, pattern=pat, full.names=FALSE) #very klunky way to handle this
+      fileList <- list.files(path=resplit$directory, pattern=pat, full.names=TRUE)
+      
+      dataset <- list()
+      
+      for (f in 1:length(fileList)) {
+        dataset[[make.names(fileNames[f])]] <- read.table(file=fileList[f], header=FALSE,
+            na.strings="*", col.names=varNames, strip.white=TRUE)
+      }
+    }
+    else  
+      dataset <- read.table(file=savedataFile, header=FALSE, na.strings="*", col.names=varNames, strip.white=TRUE)    
   }
   else if (format == "fixed") {
     if (!length(varWidths) > 0) stop("Fixed width file specified, but no widths obtained.")
     #strip.white is necessary for na.strings to work effectively with fixed width fields
     #otherwise would need something like "*       " for na.strings
+  
     dataset <- read.fwf(file=savedataFile, widths=varWidths, header=FALSE,
         na.strings="*", col.names=varNames, strip.white=TRUE)
   }

@@ -43,7 +43,8 @@ None. Function is used for its side effects (running models).
 	\code{\link{runModels_Interactive}}
 }
 \examples{
-\dontrun{runModels("C:/Users/Michael/Mplus Runs", recursive=TRUE, showOutput=TRUE,
+\dontrun{
+runModels("C:/Users/Michael/Mplus Runs", recursive=TRUE, showOutput=TRUE,
 	replaceOutfile="modifiedDate", logFile="MH_RunLog.txt", 
 	Mplus_command="C:\\Users\\Michael\\Mplus Install\\Mplus51.exe")}
 }

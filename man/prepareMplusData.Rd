@@ -24,6 +24,21 @@ prepareMplusData(df, filename, keepCols, dropCols)
 \value{No value is returned by this function. It is solely used to convert an R data.frame to an Mplus data file.}
 \author{Michael Hallquist}
 
+\examples{
+\dontrun{
+library(foreign)
+
+study5 <- read.spss("reanalysis-study-5-mt-fall-08.sav", to.data.frame=TRUE)
+ASData5 <- subset(study5, select=c("ppnum", paste("as", 1:33, sep="")))
+
+prepareMplusData(ASData5, "study5.dat")
+}
+}
+
+
+
+
+
 % Add one or more standard keywords, see file 'KEYWORDS' in the
 % R documentation directory.
 \keyword{interface}

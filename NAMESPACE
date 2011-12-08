@@ -2,9 +2,10 @@ import(xtable)
 import(tcltk)
 import(plyr)
 import(relimp)
+import(reshape)
 
 export(runModels, runModels_Interactive, extractModelSummaries, 
 	extractModelParameters, extractModIndices, getSavedata_Data, getSavedata_Fileinfo,
 	getSavedata_Bparams, showSummaryTable, LatexSummaryTable, HTMLSummaryTable,
 	createModels, prepareMplusData, readModels, testBParamConstraint,
-	testBParamCompoundConstraint)
+	testBParamCompoundConstraint, compareModels, lookupTech1Parameter)

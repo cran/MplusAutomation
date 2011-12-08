@@ -21,7 +21,11 @@ createModels(templatefile)
 %}
 \value{No value is returned by this function. It is solely used to process an Mplus template file.}
 \author{Michael Hallquist}
-
+\examples{
+\dontrun{
+createModels("L2 Multimodel Template No iter.txt")
+}
+}
 % Add one or more standard keywords, see file 'KEYWORDS' in the
 % R documentation directory.
 \keyword{interface}

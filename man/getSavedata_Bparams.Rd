@@ -31,8 +31,7 @@ and loads the dataset accordingly.
 %% ~Make other sections like Warning with \section{Warning }{....} ~
 
 \seealso{
-\code{\link{getSavedata_Fileinfo}}
-\code{\link{getSavedata_Data}}
+\code{\link{getSavedata_Fileinfo}}, \code{\link{getSavedata_Data}}
 }
 %\examples{
 %fileInfo <- getSavedata_Data("C:/Program Files/Mplus/Test Output.out")

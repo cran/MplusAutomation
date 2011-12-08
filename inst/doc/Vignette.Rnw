@@ -24,7 +24,7 @@ columns=fullflexible						%makes character spacing nice
 \setlength{\parskip}{0.3cm}
 \title{MplusAutomation Examples}
 \author{Michael N. Hallquist}
-\date{Package version 0.4-2}
+\date{Package version 0.5}
 \maketitle
 \tableofcontents
 \bigskip
@@ -41,7 +41,7 @@ As of version 0.4, the package supports extraction of summary statistics, but no
 TYPE=EFA models.
 
 The guide tries to make few assumptions about the user's familiarity with the
-R environment, as many Mplus user's may be unfamiliar with R. Note that the MplusAutomation
+\textit{R} environment, as many Mplus user's may be unfamiliar with \textit{R}. Note that the MplusAutomation
 package was written to be compatible with Mplus version 5.21 or later. Although many functions
 are likely to work with earlier versions, there may be incompatabilities.
 
@@ -53,16 +53,16 @@ the code below.
 
 \section{Installing and loading the package}
 
-The package was built using R 2.12.2, although it should be compatible with
-older versions of R. To obtain R 2.12.2 for Windows, follow this link:
-\url{http://cran.r-project.org/bin/windows/base/R-2.12.2-win.exe}
+The package was built using \textit{R} 2.13.2, although it should be compatible with
+older versions of \textit{R}. To obtain \textit{R} 2.13.2 for Windows, follow this link:
+\url{http://cran.r-project.org/bin/windows/base/R-2.13.2-win.exe}
 
-After installing the program and launching R, type the following at the command
+After installing the program and launching \textit{R}, type the following at the command
 line:
 
 \lstinline|> install.packages("MplusAutomation", .Library)|
 
-Depending on which version of Windows you're using, you may need to run R
+Depending on which version of Windows you're using, you may need to run \textit{R}
 as an administrator (right-click, Run as administrator).
 
 To load the MplusAutomation package so that its functions are available to use,
@@ -70,17 +70,28 @@ type:
 
 \lstinline|library(MplusAutomation)|
 
+\textbf{Note:} Mac users may experiences crashes if they have not setup Tcl/Tk properly within R.
+The default distribution of Tcl/Tk shipped with Mac OS X is not compatible with R. Instead, users
+should download and install the Tcl/Tk distribution here: \url{http://cran.r-project.org/bin/macosx/tools}.
+
 \section{Exporting data from R to Mplus}
+
 In version 0.3-2, a helper function, \lstinline|prepareMplusData|, was added to ease the task
-of transferring data from R to Mplus. Mplus requires that files not have a header row and that the variable
+of transferring data from \textit{R} to Mplus. Mplus requires that files not have a header row and that the variable
 names be specified within the Mplus input syntax. The \lstinline|prepareMplusData| function converts an
-R \lstinline|data.frame| object (the typical way to represent two-dimensional data in R) to a tab-delimited
+\textit{R} \lstinline|data.frame| object (the typical way to represent two-dimensional data in \textit{R}) to a tab-delimited
 file and it prints the corresponding Mplus syntax to the console. This syntax can then be pasted into the head of
 a new Mplus input file. Here are two basic examples of using the command:
 
-\lstinline|> prepareMplusData(my_data, "C:/Data_Analysis/Prepare Mplus.dat", keepCols=c("id", "item1", "item3", "item6"))|
+%\lstinline[breaklines=true, basewidth=0.4em, linewidth=40, breakatwhitespace=true]!
+\begin{lstlisting}
+prepareMplusData(my_data, "C:/Data_Analysis/Prepare Mplus.dat", keepCols=c("id", "item1", "item3", "item6"))
+\end{lstlisting}
 
-\lstinline|> prepareMplusData(my_other_data, "C:/Data_Analysis/Prepare Dropped Mplus.dat", dropCols=c("baditem1", "baditem2", "baditem7"))|
+%\lstinline[breaklines=true, basewidth=0.4em, linewidth=40, breakatwhitespace=true]!
+\begin{lstlisting}
+prepareMplusData(my_other_data, "C:/Data_Analysis/Prepare Dropped Mplus.dat",	dropCols=c("baditem1", "baditem2", "baditem7"))
+\end{lstlisting}
 
 The first call requests that only the variables specified by \lstinline|keepCols| be included in the resultant
 Mplus data file. In like manner, the second call requests that all variables except those specified by \lstinline|dropCols|
@@ -138,7 +149,7 @@ parameter of \lstinline|runModels|.
 
 The \lstinline|logFile| parameter of \lstinline|runModels| allows the user to specify a text file containing the results
 of \lstinline|runModels|. Included in the log file are the parameters passed to the function, the date when the batch
-started, which models were run (and which were skipped), and any actions taken if the R process was interrupted
+started, which models were run (and which were skipped), and any actions taken if the \textit{R} process was interrupted
 (e.g., terminating the Mplus process). By default, \lstinline|runModels| will create a log file in the same directory
 as the models to be run, \lstinline|directory|, called \lstinline|Mplus Run Models.log|. To change the name or location of this
 file, specify the \lstinline|logFile| parameter, such as in this example:
@@ -182,8 +193,8 @@ for models run by \lstinline|runModels|, pass \lstinline|showOutput=TRUE| to the
 
 \lstinline|> runModels("C:/Data_Analysis/ComparingLCAvCFA", recursive=TRUE, showOutput=TRUE)|
 
-If the R session was started through the R GUI (Rgui.exe), the output will be displayed within the R window.
-If the R session was started using Rterm (the R terminal), a separate DOS window will display the output, as occurs
+If the \textit{R} session was started through the \textit{R} GUI (Rgui.exe), the output will be displayed within the \textit{R} window.
+If the \textit{R} session was started using Rterm (the \textit{R} terminal), a separate DOS window will display the output, as occurs
 using the built-in Mplus Windows program.
 
 By default, the output is not shown, \lstinline|showOutput=FALSE|.
@@ -236,7 +247,7 @@ regular expression string. If you're unfamiliar with regular expressions in Perl
 \url{http://www.regular-expressions.info/}
 
 Note that many regular expression in Perl rely on backslashes (\textbackslash) for
-defining character classes, escaping certain characters, and so on. In R, backslashes contained
+defining character classes, escaping certain characters, and so on. In \textit{R}, backslashes contained
 in strings must be doubled (i.e., \textbackslash\textbackslash).
 
 Here is an example of filtering only files that match "ex4" followed by any characters
@@ -256,7 +267,7 @@ summaryStats <- extractModelSummaries("C:/Data_Analysis/Multiclass Models", file
 \end{lstlisting}
 
 \subsection{Listing of summary statistics extracted by extractModelSummaries}
-As of this version of the package (0.3-2), the following summary statistics are automatically extracted,
+As of this version of the package (0.5), the following summary statistics are automatically extracted,
 when available:
 
 \begin{itemize}
@@ -272,7 +283,9 @@ when available:
 	\item \lstinline|aBIC|: Sample-Size-Adjusted BIC (Sclove, 1987)
 	\item \lstinline|AIC|: Akaike's Information Criterion
 	\item \lstinline|AICC|: Corrected AIC, based on Sugiura (1978) and recommended by Burnham \& Anderson (2002)
+	\item \lstinline|DIC|: Deviance Information Criterion. Available in ESTIMATOR=BAYES output.
 	\item \lstinline|Parameters|: Number of parameters estimated by the model
+	\item \lstinline|pD|: Estimated number of parameters in Bayesian output
 	\item \lstinline|Observations|: The number of observations for the model (does not suppport multiple-groups analysis at this time)
 	\item \lstinline|CFI|: Confirmatory Fit Index
 	\item \lstinline|TLI|: Tucker-Lewis Index
@@ -283,6 +296,9 @@ when available:
 	\item \lstinline|ChiSqM_Value|: Model chi-squared value
 	\item \lstinline|ChiSqM_DF|: Model chi-squared degrees of freedom
 	\item \lstinline|ChiSqM_PValue|: Model chi-squared p value
+	\item \lstinline|ObsRepChiSqDiff_95CI_LB|: Lower bound of 95\% confidence interval for the difference between observed and replicated chi-square values
+	\item \lstinline|ObsRepChiSqDiff_95CI_UB|: Upper bound of 95\% confidence interval for the difference between observed and replicated chi-square values
+	\item \lstinline|PostPred_PValue|: Posterior predictive p-value	
 	\item \lstinline|BLRT_KM1LL|: Log-likelihood of the K-1 model (one less class) for the Bootstrapped Likelihood Ratio Test (TECH14)
 	\item \lstinline|BLRT_PValue|: P-value of the Bootstrapped Likelihood Ratio Test (TECH14) testing whether the K class model is significantly better than K-1
 	\item \lstinline|BLRT_Numdraws|: The number of bootstrapped samples used in the Bootstrapped Likelihood Ratio Test
@@ -292,6 +308,16 @@ when available:
 	\item \lstinline|ChiSqBaseline_DF|: Baseline (unstructured) chi-squared degrees of freedom
 	\item \lstinline|ChiSqBaseline_PValue|: Baseline (unstructured) chi-squared p value
 	\item \lstinline|NumFactors|: For TYPE=EFA output, the number of factors
+	\item \lstinline|T11_KM1Starts|: TECH11: Number of initial stage random starts for k-1 model
+	\item \lstinline|T11_KM1Final|: TECH11: Number of final stage optimizations for k-1 model
+	\item \lstinline|T11_KM1LL|: TECH11: Log-likelihood of the K-1 model used for the Vuong-Lo-Mendell-Rubin LRT
+	\item \lstinline|T11_VLMR_2xLLDiff|: TECH11: 2 * Log-likelihood Difference of K-class vs. K-1-class model for the Vuong-Lo-Mendell-Rubin LRT 
+	\item \lstinline|T11_VLMR_ParamDiff|: TECH11: Difference in number of parameters between K-class and K-1-class model for the Vuong-Lo-Mendell-Rubin LRT
+	\item \lstinline|T11_VLMR_Mean|: TECH11: Vuong-Lo-Mendell-Rubin LRT mean
+	\item \lstinline|T11_VLMR_SD|: TECH11: Vuong-Lo-Mendell-Rubin LRT standard deviation
+	\item \lstinline|T11_VLMR_PValue|: TECH11: Vuong-Lo-Mendell-Rubin LRT p-value
+	\item \lstinline|T11_LMR_Value|: TECH11: Lo-Mendell-Rubin Adjusted LRT value
+	\item \lstinline|T11_LMR_PValue|: TECH11: Lo-Mendell-Rubin Adjusted LRT p-value
 	
 \end{itemize}
 
@@ -346,9 +372,9 @@ HTMLSummaryTable(summaryStats, filename="C:/MyModelSummary.html", display=TRUE, 
   
 \subsection{Creating a summary table in LaTex}
 
-One major strength of R is its ability to be interwoven with LaTex, an advanced typesetting language. The most
-frequently used approach for combining R and LaTex is Sweave (\url{http://www.stat.uni-muenchen.de/~leisch/Sweave/}),
-a built-in R function that runs R code embedded in a LaTex document, thereby permitting the creation of
+One major strength of \textit{R} is its ability to be interwoven with LaTex, an advanced typesetting language. The most
+frequently used approach for combining \textit{R} and LaTex is Sweave (\url{http://www.stat.uni-muenchen.de/~leisch/Sweave/}),
+a built-in \textit{R} function that runs \textit{R} code embedded in a LaTex document, thereby permitting the creation of
 advanced automated reports.
 
 Mplus model fit summary tables can be formatted in LaTex using the \lstinline|LatexSummaryTable| function. Unlike
@@ -376,17 +402,26 @@ print(myLatexTable)
 \end{lstlisting}
 \lstinline|@|
 
-See the Sweave manual for more details about combining LaTex with R.
+See the Sweave manual for more details about combining LaTex with \textit{R}.
 
 
 \section{Extracting model modification indices}
 
 The \lstinline|extractModIndices| function extracts the model modification indices from 
 the MODEL MODIFICATION INDICES sections of one or more Mplus output files. It is up to the user to request
-modification indices using OUTPUT: MODINDICES;, and for some models, such indices are not available (as noted
+modification indices using OUTPUT: MODINDICES, and for some models, such indices are not available (as noted
 in the WARNINGS section of the Mplus output.
 
-To be expanded...
+Model modification indices are returned as a data.frame of the form:
+
+\begin{lstlisting}[columns=fixed, basewidth=0.5em]
+modV1 operator modV2     MI    EPC Std_EPC StdYX_EPC
+BORD1       ON BORD9 12.427 -0.284  -0.284    -0.231
+BORD9     WITH BORD1 12.427 -0.053  -0.053    -0.222
+\end{lstlisting}
+
+These columns follow the conventions used in Mplus where EPC refers to the expected parameter change
+if the designated relationship is estimated.
 
 \section{Extracting model parameters}
 
@@ -394,11 +429,11 @@ The \lstinline|extractModelParameters| function extracts the model parameters fr
 the MODEL RESULTS and STANDARDIZED MODEL RESULTS sections of a given Mplus output file.
 Examples of such parameters include the parameter estimate, std. err, param/s.e., and two-tailed p-value.
 
-As of MplusAutomation version 0.3-3, \lstinline|extractmodelParameters| supports extraction of results from
-many output files, with the results being returned as a list object, one element per output file. In addition,
-version 0.3-3 now returns all available model results, unstandardized and standardized, from each output file,
-with these results being returned as a list object whose elements are \lstinline|data.frame| objects consisting
-of relevant parameters. Relatedly, the resultType parameter has been deprecated and will be removed in a future version.
+Further, \lstinline|extractmodelParameters| supports extraction of results from
+many output files, with the results being returned as a list object, one element per output file. When available,
+unstandardized and standardized (StdYX, StdY, Std) parameters are extracted from each output file into a list object
+whose elements are \lstinline|data.frame| objects. Relatedly, the \lstinline|resultType| parameter has been deprecated and will
+be removed in a future version.
 
 \subsection{Example: Extracting parameters from a single file}
 
@@ -409,7 +444,7 @@ modelResults <- extractModelParameters("C:/Data_Analysis/Mplus Output.out")
 The above call will return a list with unstandardized and standardized results (if requested by including OUTPUT: STANDARDIZED)
 from the Mplus Output.out file. If all standardizations are available in the output, the returned list will have the following elements:
 \lstinline|unstandardized|, \lstinline|stdyx.standardized|, \lstinline|stdy.standardized|, and \lstinline|std.standardized|. Each of these
-elements is a \lstinline|data.frame| containing model results for the relevant section. Such elements may be accessed in using traditional R
+elements is a \lstinline|data.frame| containing model results for the relevant section. Such elements may be accessed in using traditional \textit{R}
 list operators, such as:
 
 \begin{lstlisting}
@@ -446,7 +481,7 @@ Then the following code would extract model parameters for all files in the dire
 \end{lstlisting}
 
 The names of the returned list elements would be based on the directory and file names of each file (note that spaces, slashes, and the
-minus sign have been replaced by periods to be compatible with R naming conventions):
+minus sign have been replaced by periods to be compatible with \textit{R} naming conventions):
 
 \begin{lstlisting}
 > names(allModelParameters)
@@ -468,10 +503,10 @@ TwoFacCFA.STDYX <- allModelParameters$ComparingLCAvCFA.CFA.2.factor.CFA.out$stdy
 \subsubsection{Extracting and combining model results across files and sections}
 
 Depending on the application, it may be useful to only retain certain sections or to build a single large data.frame from the multi-file
-list. What follows are a few standard R practices for combining and subsetting data that may be unfamiliar to inexperienced R users. These
+list. What follows are a few standard \textit{R} practices for combining and subsetting data that may be unfamiliar to inexperienced \textit{R} users. These
 examples serve to demonstrate how to work with the \lstinline|extractModelParameters| list flexibly.
 
-Example: Only retaining unstandardized output
+\textbf{Example: Only retaining unstandardized output}
 
 By default, extractModelParameters returns unstandardized and standardized output, where available. To retain only unstandardized results, for example,
 one could do the following (building on the CFA v. LCA example above):
@@ -490,7 +525,7 @@ unstandardizedOnly <- sapply(allModelParameters, "[", "unstandardized")
 names(unstandardizedOnly) <- oldNames
 \end{lstlisting}
 
-Example: Combining multi-file output into a single data.frame
+\textbf{Example: Combining multi-file output into a single data.frame}
 
 Rather than having a list of model results, where each element represents the parameters from a single file, it may be useful
 to combine these results into a single data.frame. The following code would accomplish this (assumes the immediately prior code was run):
@@ -521,8 +556,61 @@ Variables included in such \lstinline|data.frame| objects include:
 \end{enumerate}
 
 Some models may provide different parameters, such as posterior standard deviation for Bayesian models, and these are
-extracted appropriately by the function. See the R documentation for the function: \lstinline|?extractModelParameters| for details
-about variable names for different model types. 
+extracted appropriately by the function. See the \textit{R} documentation for the function: \lstinline|?extractModelParameters| for details
+about variable names for different model types.
+
+\subsection{Capitalizing on the graphics strength of R to visualize results}
+
+One of the major strengths of \textit{R} is its graphics functionality. Numerous functions are provided
+by base \textit{R}, such as \lstinline|hist|, \lstinline|plot|, and \lstinline|curve|. Furthermore, 
+impressively flexible and powerful graphics functionality is now provided in \textit{R} by the \lstinline|grid|
+graphics framework. An useful introduction to graphics in \textit{R} is provided by Paul Murrell's book,
+\textit{R Graphics, Second Edition} published by CRC Press. In particular, the \lstinline|ggplot2| and
+\lstinline|lattice| graphics package for \textit{R} provide powerful functions for \textit{R} graphics.
+
+By contrast, Mplus has very basic graphics functionality that lacks the flexibility and robustness of \textit{R}.
+
+Now that we have illustrated how to import Mplus model parameter estimates into \textit{R},
+here are just a couple of examples of how useful graphs in \textit{R} can be developed
+from \lstinline|extractModelParameters| data.
+
+\textbf{Example: Plotting means and standard errors from a finite mixture model}
+
+The example model to be plotted comes from a finite mixture model with seven continuous
+indicators of a latent construct, each scaled to zero mean and unit variance. The intention of
+this plot is to visualize the means and standard error of each indicator across the latent classes.
+
+\begin{lstlisting}
+  library(MplusAutomation)
+  library(ggplot2)
+  modelParams <- extractModelParameters("output_to_plot.out)$unstandardized
+  modelParams <- subset(modelParams, paramHeader=="Means" & LatentClass != "Categorical.Latent.Variables", select=c("LatentClass", "param", "est", "se"))
+  limits <- aes(ymax = est + se, ymin=est - se)
+	
+	fmmMeanPlot <- ggplot(modelParams, aes(x=param, y=est)) +
+	    geom_pointrange(limits) +
+	    scale_x_discrete("") +
+	    geom_hline(yintercept=0, color="grey50") +
+	    facet_grid(LatentClass ~ .) + 
+	    theme_bw() + 
+	    ylab("Mean Value") + 
+	    coord_flip()
+	print(fmmMeanPlot)
+
+\end{lstlisting}
+
+This relatively brief code snippet buys you a relatively useful plot of this sort:
+
+\begin{figure}[H]
+\begin{center}
+\includegraphics{mplusAutomationFMMPlot.png}
+\end{center}
+\end{figure}
+
+%\textbf{Example: Plotting latent class analysis item probabilities across classes }
+
+%Similarly, a latent class analysis of ordered categorical data can be visualized using \textit{R}
+%by plotting the item probabilities across latent classes.
 
 \section{readModels: Extracting all supported data from Mplus output}
 The \lstinline|readModels| function provides a single method for extracting all available information (that MplusAutomation currently handles)
@@ -548,6 +636,161 @@ justSummaries <- do.call("rbind.fill",sapply(allOutput,"[", "summaries"))
 The \lstinline|rbind.fill| function is provided by the \lstinline|plyr| package and is used to combine data.frames
 where the columns do not align perfectly (as happens when Mplus output files differ in the form of their summary statistics).
 The sapply call is used to extract only the \lstinline|summaries| element from each top-level element (i.e., file).   
+
+%COMPARE MODELS DOCUMENTATION
+%***********************************************************************************
+\section{Comparing summaries and parameters across models}
+An important part of interpreting results from latent variable models is the comparison of model fit indices and parameter estimates across
+related sets of models. For example, when an additional covariate is included in the model, how do the other parameter estimates change?
+The \lstinline|compareModels| function is designed to compare model fit indices and/or parameter estimates across two models.
+
+This function also computes chi-square difference tests for nested models estimated with the ML, MLM, MLR, WLS, or WLSM estimators
+using the \lstinline|diffTest| parameter.
+
+To use \lstinline|compareModels|, I recommend using \lstinline|readModels| to extract various fit statistics and parameters
+from two or more models. You can pass in the results of \lstinline|extractModelSummaries| or \lstinline|extractModelParameters|
+to \lstinline|compareModels|, but the output will be limited to summaries or parameters, respectively.
+
+Here is a brief example of how one might use \lstinline|compareModels|.
+
+\begin{lstlisting}[columns=fixed, basewidth=0.5em]
+
+> parallelModels <- readModels("10_14_Harsh_SelfCon_Impul")
+
+> compareModels(parallelModels[["backport.from.grand.model.out"]], 
+    parallelModels[["backport.from.grand.model.slopesonw1.out"]], 
+    show=c("diff", "pdiff", "summaries", "unique"), equalityMargin=c(param=.05, pvalue=.02),
+    sort="type", diffTest=TRUE, showNS=FALSE)
+
+==============
+
+Mplus model comparison
+----------------------
+
+------
+Model 1:  10_14_Harsh_SelfCon_Impul/backport from grand model.out 
+Model 2:  10_14_Harsh_SelfCon_Impul/backport from grand model slopesonw1.out 
+------
+
+Model Summary Comparison
+------------------------
+
+             m1                                    m2                                 
+Title        Harsh Impul Self-Control Trivariate   Harsh Impul Self-Control Trivariate
+               LGCM with W1 Covariates - No Direct   LGCM with W1 Covariates - Direct 
+               Influence of W1 on Slopes and         Influence of W1 on Slopes and    
+               Intercepts                            Intercepts                       
+Observations 2187                                  2187                               
+Estimator    MLR                                   MLR                                
+Parameters   87                                    103                                
+LL           -69851.911                            -69820.77                          
+AIC          139877.821                            139847.539                         
+BIC          140372.876                            140433.639                         
+ChiSqM_Value 280.781                               222.538                            
+ChiSqM_DF    129                                   113                                
+CFI          0.984                                 0.988                              
+TLI          0.977                                 0.981                              
+SRMR         0.025                                 0.022                              
+
+  MLR Chi-Square Difference test for nested models based on loglikelihood
+  -----------------------------------------------------------------------
+
+  Difference Test Scaling Correction:  1.033437 
+  Chi-square difference:  60.2668 
+  Diff degrees of freedom:  16 
+  P-value:  0 
+
+  Note: The chi-square difference test assumes that these models are nested.
+  It is up to you to verify this assumption.
+
+  MLR Chi-Square Difference test for nested models
+  --------------------------------------------
+
+  Difference Test Scaling Correction: 1.03125 
+  Chi-square difference: 60.44 
+  Diff degrees of freedom: 16 
+  P-value: 0 
+
+Note: The chi-square difference test assumes that these models are nested.
+  It is up to you to verify this assumption.
+
+=========
+
+Model parameter comparison
+--------------------------
+
+
+  Parameter estimates that differ between models (param. est. diff > 0.05)
+  ----------------------------------------------
+        paramHeader      param m1_est m2_est . m1_se m2_se . m1_est_se m2_est_se . m1_pval m2_pval
+          SCC_S1.ON      IMP_I  0.155  0.073 | 0.036 0.050 |     4.255     1.478 |   0.000   0.139
+         HPC_I.WITH      IMP_I  0.128  0.182 | 0.066 0.069 |     1.927     2.634 |   0.054   0.008
+         SCC_I.WITH      HPC_I  1.391  1.455 | 0.189 0.183 |     7.372     7.949 |   0.000   0.000
+         SCC_I.WITH      IMP_I  0.213  0.352 | 0.127 0.134 |     1.682     2.624 |   0.093   0.009
+        SCC_S1.WITH     SCC_S2 -0.584 -0.649 | 0.160 0.157 |    -3.638    -4.141 |   0.000   0.000
+         Intercepts A11XEMOTSP  4.523  4.592 | 0.568 0.568 |     7.964     8.084 |   0.000   0.000
+         Intercepts      HPC_I  5.272  5.528 | 0.225 0.243 |    23.446    22.723 |   0.000   0.000
+         Intercepts      HPC_S  0.725  0.583 | 0.092 0.092 |     7.865     6.358 |   0.000   0.000
+         Intercepts      IMP_I -0.661 -0.544 | 0.155 0.167 |    -4.263    -3.252 |   0.000   0.001
+         Intercepts      SCC_I  4.113  4.299 | 0.390 0.409 |    10.547    10.515 |   0.000   0.000
+         Intercepts     SCC_S2  4.811  5.008 | 0.382 0.418 |    12.604    11.987 |   0.000   0.000
+ Residual.Variances   A10CHARP  2.376  2.299 | 0.158 0.156 |    15.016    14.719 |   0.000   0.000
+ Residual.Variances   A10CSELF  6.871  6.544 | 0.554 0.534 |    12.405    12.245 |   0.000   0.000
+ Residual.Variances   A12CSELF  6.298  6.206 | 0.406 0.401 |    15.531    15.493 |   0.000   0.000
+ Residual.Variances   A14CHARP  2.019  1.959 | 0.154 0.150 |    13.149    13.075 |   0.000   0.000
+ Residual.Variances   A14CSELF  2.547  2.654 | 0.903 0.896 |     2.821     2.961 |   0.005   0.003
+ Residual.Variances      HPC_I  2.634  2.764 | 0.166 0.162 |    15.846    17.079 |   0.000   0.000
+ Residual.Variances      SCC_I  7.086  7.433 | 0.574 0.552 |    12.351    13.463 |   0.000   0.000
+ Residual.Variances     SCC_S1  0.606  0.680 | 0.140 0.131 |     4.312     5.203 |   0.000   0.000
+
+
+  P-values that differ between models (p-value diff > 0.02)
+  -----------------------------------
+ paramHeader param m1_est m2_est . m1_se m2_se . m1_est_se m2_est_se . m1_pval m2_pval
+    HPC_S.ON IMP_I  0.049  0.028 | 0.011 0.015 |     4.243     1.894 |   0.000   0.058
+   SCC_S1.ON IMP_I  0.155  0.073 | 0.036 0.050 |     4.255     1.478 |   0.000   0.139
+  HPC_I.WITH IMP_I  0.128  0.182 | 0.066 0.069 |     1.927     2.634 |   0.054   0.008
+  SCC_I.WITH IMP_I  0.213  0.352 | 0.127 0.134 |     1.682     2.624 |   0.093   0.009
+
+
+  Parameters unique to model 1: 0
+  -----------------------------
+
+  None
+
+
+  Parameters unique to model 2: 16
+  -----------------------------
+
+ paramHeader     param m2_est m2_se m2_est_se m2_pval
+    HPC_S.ON W1PHARPUN  0.038 0.008     4.884   0.000
+   SCC_S1.ON   W1PSELF  0.034 0.014     2.389   0.017
+
+
+  14 filtered from output (fixed and/or n.s.)
+
+    HPC_S.ON.IMPLW1, HPC_S.ON.W1PNEGEM, HPC_S.ON.W1PSELF, SCC_S1.ON.IMPLW1,
+    SCC_S1.ON.W1PHARPUN, SCC_S1.ON.W1PNEGEM, SCC_S2.ON.IMPLW1,
+    SCC_S2.ON.W1PHARPUN, SCC_S2.ON.W1PNEGEM, SCC_S2.ON.W1PSELF,
+    IMP_S.ON.IMPLW1, IMP_S.ON.W1PHARPUN, IMP_S.ON.W1PNEGEM, IMP_S.ON.W1PSELF 
+
+
+==============
+
+
+\end{lstlisting}
+
+As can be discerned above, the example \lstinline|compareModels| call above compares two nested models
+from the list returned by \lstinline|readModels|. The \lstinline|show| argument requests a comparison
+of parameter value difference (\lstinline|"diff"|), p-value differences (\lstinline|"pdiff"|),
+summary statistics (\lstinline|"summaries"|), and parameters unique to each model (\lstinline|"unique"|).
+ 
+Parameter estimate differences must exceed .05 to be displayed, and p-value differences must exceed .02
+(this is specified by the \lstinline|equalityMargin| argument).
+
+The parameter comparisons are sorted by type (factor loadings, regressions, covariances, residual variances, etc.).
+A chi-square difference test is requested using \lstinline|diffTest=TRUE|. And non-significant parameters are removed
+from the model comparison (\lstinline|showNS=FALSE|).
 
 %CREATE MODELS DOCUMENTATION
 %***********************************************************************************
@@ -603,7 +846,7 @@ The above template file instructs the \lstinline|createModels| function to loop 
 The \lstinline|classes| variable is defined as the integers from 1-7 (the colon in 1:7 indicates a sequence).
 Files should be named according to the number of classes, so when \lstinline|classes = 5|, then \lstinline|filename = "[[classes]]-class LCA 7.3.inp";|
 will evaluate to \lstinline|5-class LCA 7.3.inp|. All files will be saved in the directory \lstinline|C:/Mplus_Automation/LCA Outputs|. Note that
-R uses forward slashes, not backslashes, to indicate directory paths.
+\textit{R} uses forward slashes, not backslashes, to indicate directory paths.
 
 In the body section of this simple example, the only thing that changes is the definition \lstinline|CLASSES = c([[classes]])|. And because
 \lstinline|classes| was defined as the integers from 1-7, 7 Mplus input files will be created by \lstinline|createModels| with the major difference
@@ -636,9 +879,12 @@ is that the outcomeNames variable is defined as a four-item list, not as a singl
 of a variable need to contain spaces, be sure to include the values in double quotes. For example, we might modify
 the outcomeNames field to be:
 
-\lstinline|outcomeNames#outcome = "Conscientiousness Score" "Extraversion Score" "Agreeableness Score" "Openness Score";|
+%\lstinline|
+\begin{lstlisting}
+outcomeNames#outcome = "Conscientiousness Score" "Extraversion Score" "Agreeableness Score" "Openness Score";
+\end{lstlisting}
 
-This point deserves a emphasis: \textbf{spaces are assumed to specify distinct values unless they are enclosed in
+This point deserves emphasis: \textbf{spaces are assumed to specify distinct values unless they are enclosed in
 double quotes}. This behavior is similar to the Mplus language, where syntax such as \lstinline|VARIABLES = var1 var2 var3;|
 defines three distinct variable names. Even where a given variable in the init section has only one value (such as \lstinline|filename|
 above), double quotes must be used if the spaces are to be included in the created files, rather than being interpreted as a list.
@@ -679,10 +925,10 @@ spaces, please use double quotes.
 The \textbf{third} required init variable is \lstinline|outputDirectory|. This variable defines the directory (or
 directories) where input files should be saved. \textbf{Please note:} If directories specified by \lstinline|outputDirectory|
 do not exist, the \lstinline|createModels| function will create them, so be careful that the path is correct.
-If no output directory is specified, \lstinline|createModels| will place the input files in the R working directory
+If no output directory is specified, \lstinline|createModels| will place the input files in the \textit{R} working directory
 (viewable by \lstinline|getwd()| and settable by \lstinline|setwd()|), but it is preferable always to specify an output
 directory. If an outputDirectory is not an absolute path (i.e., one that begins with a drive letter, such as \lstinline|C:\|),
-then the top level of the output directory will be placed within the R working directory. Consider this value
+then the top level of the output directory will be placed within the \textit{R} working directory. Consider this value
 of \lstinline|outputDirectory|:
 
 \begin{lstlisting}
@@ -728,7 +974,7 @@ outputDirectory = "Template Output/[[outcomeDirNames#outcome]];"
 \end{lstlisting}
 
 In this case, because the \lstinline|outputDirectory| is not an absolute path (i.e., does not begin
-with a drive letter), a directory called "Template Output" will be created within the R working directory
+with a drive letter), a directory called "Template Output" will be created within the \textit{R} working directory
 (\lstinline|getwd|). Five subdirectories within "Template Output" will be created: "Conscientiousness",
 "Extraversion", "Agreeableness", "Openness", and "Neuroticism". Within each of those directories, three files will
 be created: "Poisson Growth Model.inp", "Negative Binomial Growth Model.inp", and "Negative Binomial Hurdle Growth Model.inp".

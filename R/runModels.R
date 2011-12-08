@@ -339,10 +339,12 @@ runModels <- function(directory=getwd(), recursive=FALSE, showOutput=FALSE, repl
     
     absFilename <- file.path(directory, inpfiles[i])
 
-		#If running on unix and Mplus_command default not overridden, then include wine call in command.
-		#Required for wine to locate the executable within the wine path (on non-interactive shell).
-		if (.Platform$OS.type == "unix" && Mplus_command == "Mplus") Mplus_command <- "wine Mplus"
-		
+    #UPDATE 21Oct2011: Since mplus has been released for linux, don't default to wine.
+    if (.Platform$OS.type == "unix" && Mplus_command == "Mplus") {
+      if (Sys.info()["sysname"] == "Darwin") Mplus_command <- "/Applications/Mplus/mplus"
+      else Mplus_command <- "mplus" #linux is case sensitive
+    }
+      
 		#navigate to working directory in DOS using cd command so that Mplus finds the appropriate files (support rel paths)
     #switched over to use relative filename because of problems in Mplus via Wine misinterpreting absolute paths due to forward slashes.
 		command <- paste("cd \"", dirtocd, "\" && ", Mplus_command, " \"", inputSplit$filename, "\"", sep="")
@@ -361,7 +363,7 @@ runModels <- function(directory=getwd(), recursive=FALSE, showOutput=FALSE, repl
 			command <- paste(shellcommand, flag, command)			
 		}
 		else if (.Platform$OS.type == "unix") {
-			#allow for unix-specific customization here... Nothing at the moment
+			#allow for unix-specific customization here
 		}
 		
     if (isLogOpen()) {

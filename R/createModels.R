@@ -556,7 +556,8 @@ finalizeInitCollection <- function(initCollection) {
     
     if (nrow(initTags) == 0) break #if no tags found, then substitution complete
     
-    initTags <- subset(initTags, tagType %in% c("simple", "array"))
+    #update: iterator tags can be nested within other tag types and not updated until here.
+    initTags <- subset(initTags, tagType %in% c("simple", "iterator", "array"))
     if (nrow(initTags) == 0) break #some tags, but none of the simple or array variety, which we want to replace
 
     #use plyr's splitter_a function to divide dataset by row (builds a big list)
@@ -568,6 +569,10 @@ finalizeInitCollection <- function(initCollection) {
         function(row) {
           if (row$tagType == "simple") {
             return(eval(parse(text=paste("initCollection$", row$tag, sep=""))))
+          }
+          else if (row$tagType == "iterator") {
+            #an iterator tag was nested
+            return(initCollection$curItPos[row$tag])
           }
           else if (row$tagType == "array") {
             split <- strsplit(row$tag, split="#", fixed=TRUE)[[1]]

@@ -33,17 +33,27 @@ not a list of files.
 
 \item{summaries}{Summary statistics from \code{extractModelSummaries}, having structure as specified by that function}
 \item{parameters}{Model parameters from \code{extractModelParameters}, having structure as specified by that function}
+\item{mod_indices}{Model modification indices from \code{extractModIndices}, having structure as specified by that function}
+\item{savedata_info}{File information about SAVEDATA files related to this output}
 \item{savedata}{SAVEDATA file as an R \code{data.frame}, as described in \code{getSavedata_Data}}
+\item{bparameters}{a \code{data.frame} containing the draws from the posterior distribution for a Bayesian model that uses the 
+	SAVEDATA BPARAMETERS command}
+\item{residuals}{a list containing relevant information from OUTPUT: RESIDUALS}
+\item{tech1}{a list containing parameter specification and starting values from OUTPUT: TECH1}
+\item{tech4}{a list containing means, covariances, and correlations for latent variables from OUTPUT: TECH4}
 }
 
 \author{Michael Hallquist}
 \seealso{
-\code{\link{extractModelSummaries}}
-\code{\link{extractModelParameters}}
-\code{\link{getSavedata_Data}}
+\code{\link{extractModelSummaries}}, \code{\link{extractModelParameters}}, \code{\link{extractModIndices}},
+\code{\link{getSavedata_Fileinfo}}, \code{\link{getSavedata_Data}}, \code{\link{getSavedata_Bparams}}
+
 }
 \examples{
-\dontrun{allOutput <- readModels("C:/Program Files/Mplus/Mplus Examples/User's Guide Examples", recursive=TRUE)}
+\dontrun{
+allOutput <- readModels(
+	"C:/Program Files/Mplus/Mplus Examples/User's Guide Examples", recursive=TRUE)
+}
 }
 % Add one or more standard keywords, see file 'KEYWORDS' in the
 % R documentation directory.

@@ -209,8 +209,7 @@ extractParameters_1section <- function(filename, modelSection, sectionName) {
     for (colName in oldStyleColumns[oldStyleColumns %in% names(allSectionParameters)]) {
       listParameters[[paste(colName, ".standardized", sep="")]] <- data.frame(paramHeader=allSectionParameters$paramHeader,
           param=allSectionParameters$param, est=allSectionParameters[,colName], stringsAsFactors=FALSE)
-      
-      
+            
       #also include latent class, multiple groups and bw/wi in the output
       if ("LatentClass" %in% names(allSectionParameters)) listParameters[[paste(colName, ".standardized", sep="")]]$LatentClass <- allSectionParameters$LatentClass
       if ("Group" %in% names(allSectionParameters)) listParameters[[paste(colName, ".standardized", sep="")]]$Group <- allSectionParameters$Group
@@ -230,6 +229,12 @@ extractParameters_1section <- function(filename, modelSection, sectionName) {
     
   } 
   
+  #tag as mplusParams class
+  listParameters <- lapply(listParameters, function(x) {
+        class(x) <- c("data.frame", "mplus.params")
+        attr(x, "filename") <- filename
+        return(x)
+      })
   return(listParameters)
   
   #a few examples of files to parse
@@ -247,8 +252,7 @@ extractParameters_1file <- function(outfiletext, filename, resultType) {
   if (length(grep("TYPE\\s+(IS|=|ARE)\\s+((MIXTURE|TWOLEVEL)\\s+)+EFA\\s+\\d+", outfiletext, ignore.case=TRUE, perl=TRUE)) > 0) {
     warning(paste("EFA, MIXTURE EFA, and TWOLEVEL EFA files are not currently supported by extractModelParameters.\n  Skipping outfile: ", filename, sep=""))
     return(NULL) #skip file
-  }
-  
+  } 
   
   
   #copy elements of append into target. note that data.frames inherit list, so could be wonky if append is a data.frame (shouldn't happen here)

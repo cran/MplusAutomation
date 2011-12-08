@@ -10,7 +10,7 @@ By default, the following summary statistics are included: \code{Title, LL, Para
 but these are customizable using the \code{keepCols} and \code{dropCols} parameters.
 }
 \usage{
-showSummaryTable(modelList, keepCols, dropCols, sortBy)
+showSummaryTable(modelList, keepCols, dropCols, sortBy, font="Courier 9")
 }
 \arguments{
   \item{modelList}{A list of models (as a \code{data.frame}) returned from the \code{extractModelSummaries}
@@ -24,6 +24,7 @@ showSummaryTable(modelList, keepCols, dropCols, sortBy)
   	Example: \code{c("InputInstructions", "TLI")}}
   \item{sortBy}{optional. Field name (as character string) by which to sort the table.
   	Typically an information criterion (e.g., "AIC" or "BIC") is used to sort the table. Defaults to "AICC"}
+  \item{font}{optional. The font to be used to display the summary table. Defaults to Courier 9}
 }
 \value{
 No value is returned by this function. It is solely used to display the summary table in a separate window.}

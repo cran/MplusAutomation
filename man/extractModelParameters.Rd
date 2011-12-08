@@ -95,7 +95,10 @@ If the model contains two-level output (between/within), \code{BetweenWithin} wi
 \code{\link{extractModelSummaries}}
 }
 \examples{
-\dontrun{ex3.14 <- extractModelParameters("C:/Program Files/Mplus/Mplus Examples/User's Guide Examples/ex3.14.out")}
+\dontrun{
+ex3.14 <- extractModelParameters(
+	"C:/Program Files/Mplus/Mplus Examples/User's Guide Examples/ex3.14.out")
+}
 }
 
 \keyword{interface}

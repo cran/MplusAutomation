@@ -14,17 +14,18 @@ The MplusAutomation package leverages the flexibility of the
 \tabular{ll}{
 Package: \tab MplusAutomation\cr
 Type: \tab Package\cr
-Version: \tab 0.4-3\cr
-Date: \tab 2011-07-07\cr
+Version: \tab 0.5\cr
+Date: \tab 2011-12-08\cr
 License: \tab LGPL-3\cr
 LazyLoad: \tab yes\cr
 }
 
-The MplusAutomation package has three primary purposes:
+The MplusAutomation package has four primary purposes:
 \enumerate{
 	\item To automatically run groups/batches of models.
 	\item To provide routines to extract model fit statistics, parameter estimates,
 		and raw data from Mplus output files.
+	\item To facilitate comparisons among models
 	\item To provide a template language that allows for the creation of related input files.
 }
 
@@ -41,6 +42,8 @@ To extract unstandardized or standardized parameter estimates from a single outp
 
 Summaries, parameters, modification indices, and SAVEDATA output can be extracted simultaneously using the \code{\link{readModels}} function,
 and this is the recommended way to extract output with this package.
+
+Model fit and parameter comparisons between models can be obtained using \code{\link{compareModels}}.
 
 To create a group of related models from a single template, see \code{\link{createModels}}. Please read the MplusAutomation
 vignette provided along with the package (and on the CRAN website) in order to understand the template language.

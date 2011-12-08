@@ -35,13 +35,7 @@ You must choose between \code{keepCols} and \code{dropCols} because it's not sen
 and exclude columns. The function will error if you include both parameters.
 }
 \seealso{
-\code{\link{extractModelSummaries}}
-
-\code{\link{HTMLSummaryTable}}
-
-\code{\link{showSummaryTable}}
-
-\code{\link{Sweave}}
+\code{\link{extractModelSummaries}}, \code{\link{HTMLSummaryTable}}, \code{\link{showSummaryTable}}, \code{\link{Sweave}}
 
 }
 %\examples{

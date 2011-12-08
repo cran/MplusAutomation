@@ -1,8 +1,28 @@
+Version 0.5
+- new function compareModels to compare model summaries and parameters.
+- compareModels supports chi-square difference testing using diffTest=TRUE.
+- extraction of TECH11 output supported by extractModelSummaries.
+- extraction of TECH1 output supported by readModels.
+- added utility function lookupTech1Parameter to find a given parameter number in output.
+- extraction of TECH4 output supported by readModels.
+- extraction of RESIDUALS output supported by readModels.
+- extractModelSummaries now reads summaries (e.g., DIC) from ESTIMATOR=BAYES output.
+- getSavedata_Fileinfo now supports extraction of Monte Carlo variable names.
+- getSavedata_Data now automatically extracts Monte Carlo/Multiple Imputation data as a list. 
+- removed wine as default for running Mplus on Linux now that Mplus is native for Linux.
+- specify runModels default mplus location on Mac as /Applications/Mplus/mplus.
+- several updates to MplusAutomation Vignette.
+- showSummaryTable allows user to specify font.
+- added more examples to R help files.
+- bugfix: getSavedata_Data was calling read.table instead of read.fwf after Bparams code was added.
+- bugfix: iterator tags nested within other tag types in template init section were not replaced by createModels.
+- bugfix: getSection now identifies SAVEDATA INFORMATION header correctly.
+
 Version 0.4-3
-- throw specific error when createModels encounters a template file with no body tags.
-- changed names of return list from fileinfo: change doc
+- throw specific error when createModels encounters a template file with no body tags (come back later to allow for this).
+- changed names of return list from getSavedata_Fileinfo: breaks compatibility.
 - initial support of reading Bayesian parameters from SAVEDATA BPARAMETERS command.
-- provide inequality constraint tests for bayesian parameter estimates: (van de Schoot, Hoijtink, Hallquist, & Boelen, submitted) 
+- provide inequality constraint tests for bayesian parameter estimates: van de Schoot, Hoijtink, Hallquist, & Boelen, submitted. 
 - initial support of model parameter extraction for Monte Carlo output (MONTECARLO: and MODEL POPULATION:) using extractModelParameters.
 - initial support of unstandardized confidence interval output from OUTPUT:CINTERVAL (thanks to Stephen Tueller for initial development of this)
 - reworked detection of major output sections to match a fixed list of options (decrease ambiguity)

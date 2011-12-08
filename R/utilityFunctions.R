@@ -1,3 +1,34 @@
+lookupTech1Parameter <- function(tech1Output, paramNumber) {
+  if (!inherits(tech1Output, c("mplus.parameterSpecification", "mplus.tech1"))) {
+    warning("tech1Output passed into lookupTech1Parameter does not appear to be the right data type.")
+    return(NULL)
+  }
+  
+  if (inherits(tech1Output, "mplus.tech1")) tech1Output <- tech1Output$parameterSpecification
+  
+  matchFound <- FALSE
+  for (mat in 1:length(tech1Output)) {
+    matchPos <- which(tech1Output[[mat]] == paramNumber, arr.ind=TRUE)
+    if (nrow(matchPos) > 0) {
+      matchFound <- TRUE
+      matName <- names(tech1Output)[mat]
+      matchVars <- cbind(row=rownames(tech1Output[[mat]])[matchPos[,"row"]],
+          col=colnames(tech1Output[[mat]])[matchPos[,"col"]])      
+    }
+  }
+  
+  if (matchFound) {
+    cat("Matrix name:", matName, "\n\n")
+    print(as.data.frame(matchVars))
+  }
+  else
+    cat("Unable to find matching parameter in TECH1 output for parameter number:", paramNumber)
+  
+  return(as.data.frame(matchVars))
+  
+}
+
+
 testBParamConstraint <- function(bparams, coef1, operator, coef2) {
   cat("Number of iterations: ", nrow(bparams), "\n")
   ineq <- eval(parse(text=paste("bparams$", coef1, operator, "bparams$", coef2, sep="")))
@@ -153,7 +184,7 @@ getSection <- function(sectionHeader, outfiletext, headers="standard") {
     "CONFIDENCE INTERVALS OF TOTAL, TOTAL INDIRECT, SPECIFIC INDIRECT, AND DIRECT EFFECTS",
     "CONFIDENCE INTERVALS OF STANDARDIZED TOTAL, TOTAL INDIRECT, SPECIFIC INDIRECT,", #omitted "AND DIRECT EFFECTS"
     "RESIDUAL OUTPUT", "MODEL MODIFICATION INDICES", "MODEL COMMAND WITH FINAL ESTIMATES USED AS STARTING VALUES",
-    "FACTOR SCORE INFORMATION (COMPLETE DATA)", "SUMMARY OF FACTOR SCORES", "PLOT INFORMATION",
+    "FACTOR SCORE INFORMATION (COMPLETE DATA)", "SUMMARY OF FACTOR SCORES", "PLOT INFORMATION", "SAVEDATA INFORMATION",
     "Beginning Time:\\s*\\d+:\\d+:\\d+", "MUTHEN & MUTHEN")
 
 
@@ -345,7 +376,10 @@ detectColumnNames <- function(filename, modelSection, sectionType="model_results
 }
 
 trimSpace <- function(string) {
-  string <- sub("^\\s*", "", string, perl=TRUE)
-  string <- sub("\\s*$","", string, perl=TRUE)
-  return(string)
+  stringTrim <- sapply(string, function(x) {
+        x <- sub("^\\s*", "", x, perl=TRUE)
+        x <- sub("\\s*$","", x, perl=TRUE)
+        return(x)
+      }, USE.NAMES=FALSE)
+  return(stringTrim)
 }

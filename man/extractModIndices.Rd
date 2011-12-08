@@ -43,12 +43,12 @@ The basic \code{data.frame} containing the MODEL MODIFICATION INDICES section of
 }
 \author{Michael Hallquist}
 \seealso{
-\code{\link{readModels}}
-\code{\link{extractModelSummaries}}
-\code{\link{extractModelParameters}}
+\code{\link{readModels}}, \code{\link{extractModelSummaries}}, \code{\link{extractModelParameters}}
 }
 \examples{
-\dontrun{ex3.14 <- extractModIndices("C:/Program Files/Mplus/Mplus Examples/User's Guide Examples/ex3.14.out")}
+\dontrun{
+ex3.14 <- extractModIndices(
+	"C:/Program Files/Mplus/Mplus Examples/User's Guide Examples/ex3.14.out")}
 }
 
 \keyword{interface}

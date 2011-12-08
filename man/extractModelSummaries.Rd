@@ -27,7 +27,7 @@ extractModelSummaries(target = getwd(), recursive = FALSE, filefilter)
 %%  ~~ If necessary, more details than the description above ~~
 %}
 \value{Returns a \code{data.frame} containing model fit statistics for all output files within \code{directory}.
-The \code{data.frame} contains the following variables:
+The \code{data.frame} contains some of the following variables (depends on model type):
 
 %%  \item{comp1 }{Description of 'comp1'}
 \item{Title}{Title for the model, specified by the TITLE: command}
@@ -39,7 +39,9 @@ The \code{data.frame} contains the following variables:
 \item{aBIC}{Sample-Size-Adjusted BIC (Sclove, 1987)}
 \item{AIC}{Akaike's Information Criterion}
 \item{AICC}{Corrected AIC, based on Sugiura (1978) and recommended by Burnham & Anderson (2002)}
+\item{DIC}{Deviance Information Criterion. Available in ESTIMATOR=BAYES output.}
 \item{Parameters}{Number of parameters estimated by the model}
+\item{pD}{Estimated number of parameters in Bayesian output}
 \item{Observations}{The number of observations for the model (does not suppport multiple-groups analysis at this time)}
 \item{CFI}{Confirmatory Fit Index}
 \item{TLI}{Tucker-Lewis Index}
@@ -50,6 +52,9 @@ The \code{data.frame} contains the following variables:
 \item{ChiSqM_Value}{Model chi-squared value}
 \item{ChiSqM_DF}{Model chi-squared degrees of freedom}
 \item{ChiSqM_PValue}{Model chi-squared p value}
+\item{ObsRepChiSqDiff_95CI_LB}{Lower bound of 95\% confidence interval for the difference between observed and replicated chi-square values}
+\item{ObsRepChiSqDiff_95CI_UB}{Upper bound of 95\% confidence interval for the difference between observed and replicated chi-square values}
+\item{PostPred_PValue}{Posterior predictive p-value}
 \item{BLRT_KM1LL}{Log-likelihood of the K-1 model (one less class) for the Bootstrapped Likelihood Ratio Test (TECH14).}
 \item{BLRT_PValue}{P-value of the Bootstrapped Likelihood Ratio Test (TECH14) testing whether the K class model is significantly better than K-1}
 \item{BLRT_Numdraws}{The number of bootstrapped samples used in the Bootstrapped Likelihood Ratio Test}
@@ -60,19 +65,26 @@ The \code{data.frame} contains the following variables:
 \item{ChiSqBaseline_Value}{Baseline (unstructured) chi-squared value}
 \item{ChiSqBaseline_DF}{Baseline (unstructured) chi-squared degrees of freedom}
 \item{ChiSqBaseline_PValue}{Baseline (unstructured) chi-squared p value}
-\item{NumFactors}{For TYPE=EFA output, the number of factors}    
+\item{NumFactors}{For TYPE=EFA output, the number of factors}
+\item{T11_KM1Starts}{TECH11: Number of initial stage random starts for k-1 model}
+\item{T11_KM1Final}{TECH11: Number of final stage optimizations for k-1 model}
+\item{T11_KM1LL}{TECH11: Log-likelihood of the K-1 model used for the Vuong-Lo-Mendell-Rubin LRT}
+\item{T11_VLMR_2xLLDiff}{TECH11: 2 * Log-likelihood Difference of K-class vs. K-1-class model for the Vuong-Lo-Mendell-Rubin LRT} 
+\item{T11_VLMR_ParamDiff}{TECH11: Difference in number of parameters between K-class and K-1-class model for the Vuong-Lo-Mendell-Rubin LRT}
+\item{T11_VLMR_Mean}{TECH11: Vuong-Lo-Mendell-Rubin LRT mean}
+\item{T11_VLMR_SD}{TECH11: Vuong-Lo-Mendell-Rubin LRT standard deviation}
+\item{T11_VLMR_PValue}{TECH11: Vuong-Lo-Mendell-Rubin LRT p-value}
+\item{T11_LMR_Value}{TECH11: Lo-Mendell-Rubin Adjusted LRT value}
+\item{T11_LMR_PValue}{TECH11: Lo-Mendell-Rubin Adjusted LRT p-value}
 }
-%\references{
-%% ~put references to the literature/web site here ~
-%}
 \author{Michael Hallquist}
 
 \seealso{
-\code{\link{regex}}
-
-\code{\link{runModels}}
+\code{\link{regex}}, \code{\link{runModels}}, \code{\link{readModels}}
 }
 \examples{
-\dontrun{allExamples <- extractModelSummaries("C:/Program Files/Mplus/Mplus Examples/User's Guide Examples")}
+\dontrun{
+allExamples <- extractModelSummaries(
+	"C:/Program Files/Mplus/Mplus Examples/User's Guide Examples")}
 }
 \keyword{interface}
