@@ -24,9 +24,12 @@ readModels <- function(target=getwd(), recursive=FALSE, filefilter) {
       allFiles[[listID]]$savedata <- l_getSavedata_readRawFile(curfile, outfiletext, format="fixed", fileName=fileInfo[["fileName"]], varNames=fileInfo[["fileVarNames"]], varWidths=fileInfo[["fileVarWidths"]])
     
     allFiles[[listID]]$bparameters <- l_getSavedata_readRawFile(curfile, outfiletext, format="free", fileName=fileInfo[["bayesFile"]], varNames=fileInfo[["bayesVarNames"]]) 
-    allFiles[[listID]]$residuals <- extractResiduals(outfiletext, curfile) 
-    allFiles[[listID]]$tech1 <- extractTech1(outfiletext, curfile)
-    allFiles[[listID]]$tech4 <- extractTech4(outfiletext, curfile)
+    allFiles[[listID]]$residuals <- extractResiduals(outfiletext, curfile)
+    allFiles[[listID]]$tech1 <- extractTech1(outfiletext, curfile) #parameter specification
+    allFiles[[listID]]$tech4 <- extractTech4(outfiletext, curfile) #latent means
+    
+    #aux(e) means
+    allFiles[[listID]]$eqMeans <- extractAuxE_1file(outfiletext, curfile)
     
     #add class tag for use with compareModels
     class(allFiles[[listID]]) <- c("list", "mplus.model")
@@ -123,7 +126,7 @@ extractValue <- function(pattern, textToScan, filename, type="int") {
 
 #new approach to multiline section: retain spaces and look for next
 #line that has identical indentation.
-getMultilineSection <- function(header, outfiletext, filename, allowMultiple=FALSE) {
+getMultilineSection <- function(header, outfiletext, filename, allowMultiple=FALSE, allowSpace=TRUE) {
 	
 	#allow for multiple depths (subsections) separated by ::
   #will just extract from deepest depth
@@ -132,7 +135,8 @@ getMultilineSection <- function(header, outfiletext, filename, allowMultiple=FAL
   sectionList <- list()
 	targetText <- outfiletext
 	for (level in 1:length(header)) {
-		headerRow <- grep(paste("^\\s*", header[level], "\\s*$", sep=""), targetText, perl=TRUE)
+		if (allowSpace==TRUE) headerRow <- grep(paste("^\\s*", header[level], "\\s*$", sep=""), targetText, perl=TRUE)
+    else headerRow <- grep(paste("^", header[level], "$", sep=""), targetText, perl=TRUE) #useful for equality of means where we just want anything with 0 spaces
 		
 		if (length(headerRow) == 1 || (length(headerRow) > 0 && allowMultiple==TRUE)) {
 			for (r in 1:length(headerRow)) {
@@ -342,6 +346,7 @@ extractSummaries_1section <- function(modelFitSection, arglist, filename) {
 				"", #section-inspecific parameters
 				"Chi-Square Test of Model Fit",
 				"Chi-Square Test of Model Fit for the Baseline Model",
+        "Chi-Square Test for Difference Testing",
 				"Loglikelihood",
 				"CFI/TLI",
 				"Information Criteria",
@@ -366,6 +371,11 @@ extractSummaries_1section <- function(modelFitSection, arglist, filename) {
 						regexPattern=c("^\\s*Value", "Degrees of Freedom", "^\\s*P-Value"), 
 						varType=c("dec", "int", "dec"), stringsAsFactors=FALSE
 				),
+        data.frame(
+            varName=c("ChiSqDiffTest_Value", "ChiSqDiffTest_DF", "ChiSqDiffTest_PValue"), 
+            regexPattern=c("^\\s*Value", "Degrees of Freedom", "^\\s*P-Value"), 
+            varType=c("dec", "int", "dec"), stringsAsFactors=FALSE
+        ),
 				data.frame(
 						varName=c("LL", "UnrestrictedLL", "LLCorrectionFactor", "UnrestrictedLLCorrectionFactor"), 
 						regexPattern=c("H0 Value", "H1 Value", "H0 Scaling Correction Factor", "H1 Scaling Correction Factor"), 
@@ -373,7 +383,7 @@ extractSummaries_1section <- function(modelFitSection, arglist, filename) {
 				),
 				data.frame(
 						varName=c("CFI", "TLI"),
-						regexPattern=c("CFI", "TLI"),
+            regexPattern=c("CFI", "TLI"),
 						varType=c("dec", "dec"), stringsAsFactors=FALSE
 				),
 				data.frame(
@@ -931,7 +941,7 @@ extractResiduals <- function(outfiletext, filename) {
   if (is.null(residSection)) return(list()) #no residuals output
   
   #allow for multiple groups
-  residSubsections <- getMultilineSection("ESTIMATED MODEL AND RESIDUALS \\(OBSERVED - ESTIMATED\\)( FOR [\\w\\d\\.]+)*",
+  residSubsections <- getMultilineSection("ESTIMATED MODEL AND RESIDUALS \\(OBSERVED - ESTIMATED\\)( FOR [\\w\\d\\s\\.,]+)*",
       residSection, filename, allowMultiple=TRUE)
 
   matchlines <- attr(residSubsections, "matchlines")
@@ -941,7 +951,7 @@ extractResiduals <- function(outfiletext, filename) {
     return(list())
   }
   else if (length(residSubsections) > 1)
-      groupNames <- gsub("^\\s*ESTIMATED MODEL AND RESIDUALS \\(OBSERVED - ESTIMATED\\)( FOR ([\\w\\d\\.]+))*\\s*$", "\\2", residSection[matchlines], perl=TRUE)
+      groupNames <- make.names(gsub("^\\s*ESTIMATED MODEL AND RESIDUALS \\(OBSERVED - ESTIMATED\\)( FOR ([\\w\\d\\s\\.,]+))*\\s*$", "\\2", residSection[matchlines], perl=TRUE))
   
   residList <- list()
   #multiple groups possible
@@ -979,7 +989,7 @@ extractTech1 <- function(outfiletext, filename) {
 
   tech1List <- list()
   
-  paramSpecSubsections <- getMultilineSection("PARAMETER SPECIFICATION( FOR [\\w\\d\\.]+)*",
+  paramSpecSubsections <- getMultilineSection("PARAMETER SPECIFICATION( FOR [\\w\\d\\s\\.,]+)*",
       tech1Section, filename, allowMultiple=TRUE)
   
   matchlines <- attr(paramSpecSubsections, "matchlines")
@@ -988,7 +998,7 @@ extractTech1 <- function(outfiletext, filename) {
   if (length(paramSpecSubsections) == 0)
     warning ("No parameter specfication sections found within TECH1 output.")
   else if (length(paramSpecSubsections) > 1)
-    groupNames <- gsub("^\\s*PARAMETER SPECIFICATION( FOR ([\\w\\d\\.]+))*\\s*$", "\\2", tech1Section[matchlines], perl=TRUE)
+    groupNames <- make.names(gsub("^\\s*PARAMETER SPECIFICATION( FOR ([\\w\\d\\s\\.,]+))*\\s*$", "\\2", tech1Section[matchlines], perl=TRUE))
 
   for (g in 1:length(paramSpecSubsections)) {
     targetList <- list()
@@ -1001,6 +1011,9 @@ extractTech1 <- function(outfiletext, filename) {
     targetList[["beta"]] <- matrixExtract(paramSpecSubsections[[g]], "BETA", filename)
     targetList[["gamma"]] <- matrixExtract(paramSpecSubsections[[g]], "GAMMA", filename)
     targetList[["psi"]] <- matrixExtract(paramSpecSubsections[[g]], "PSI", filename)
+    targetList[["gamma.c"]] <- matrixExtract(paramSpecSubsections[[g]], "GAMMA\\(C\\)", filename)
+    targetList[["alpha.c"]] <- matrixExtract(paramSpecSubsections[[g]], "ALPHA\\(C\\)", filename)
+    
     
     if (length(paramSpecSubsections) > 1) {
       class(targetList) <- c("list", "mplus.parameterSpecification")
@@ -1013,7 +1026,7 @@ extractTech1 <- function(outfiletext, filename) {
   class(paramSpecList) <- c("list", "mplus.parameterSpecification")
   if (length(paramSpecSubsections) > 1) attr(paramSpecList, "group.names") <- groupNames
   
-  startValSubsections <- getMultilineSection("STARTING VALUES( FOR [\\w\\d\\.]+)*", 
+  startValSubsections <- getMultilineSection("STARTING VALUES( FOR [\\w\\d\\s\\.,]+)*", 
       tech1Section, filename, allowMultiple=TRUE)
   
   matchlines <- attr(startValSubsections, "matchlines")
@@ -1022,7 +1035,7 @@ extractTech1 <- function(outfiletext, filename) {
   if (length(startValSubsections) == 0)
     warning ("No starting value sections found within TECH1 output.")
   else if (length(startValSubsections) > 1)
-    groupNames <- gsub("^\\s*STARTING VALUES( FOR ([\\w\\d\\.]+))*\\s*$", "\\2", tech1Section[matchlines], perl=TRUE)    
+    groupNames <- make.names(gsub("^\\s*STARTING VALUES( FOR ([\\w\\d\\s\\.,]+))*\\s*$", "\\2", tech1Section[matchlines], perl=TRUE))    
 
   for (g in 1:length(startValSubsections)) {
     targetList <- list()
@@ -1035,7 +1048,9 @@ extractTech1 <- function(outfiletext, filename) {
     targetList[["beta"]] <- matrixExtract(startValSubsections[[g]], "BETA", filename)
     targetList[["gamma"]] <- matrixExtract(startValSubsections[[g]], "GAMMA", filename)
     targetList[["psi"]] <- matrixExtract(startValSubsections[[g]], "PSI", filename)
-    
+    targetList[["gamma.c"]] <- matrixExtract(startValSubsections[[g]], "GAMMA\\(C\\)", filename)
+    targetList[["alpha.c"]] <- matrixExtract(startValSubsections[[g]], "ALPHA\\(C\\)", filename)
+        
     if (length(startValSubsections) > 1) {
       class(targetList) <- c("list", "mplus.startingValues")
       startValList[[groupNames[g]]] <- targetList
@@ -1060,7 +1075,7 @@ extractTech4 <- function(outfiletext, filename) {
   
   tech4List <- list()
     
-  tech4Subsections <- getMultilineSection("ESTIMATES DERIVED FROM THE MODEL( FOR [\\w\\d\\.]+)*",
+  tech4Subsections <- getMultilineSection("ESTIMATES DERIVED FROM THE MODEL( FOR [\\w\\d\\s\\.,]+)*",
       tech4Section, filename, allowMultiple=TRUE)
   
   matchlines <- attr(tech4Subsections, "matchlines")
@@ -1070,7 +1085,7 @@ extractTech4 <- function(outfiletext, filename) {
     return(list())
   }
   else if (length(tech4Subsections) > 1)
-    groupNames <- gsub("^\\s*ESTIMATES DERIVED FROM THE MODEL( FOR ([\\w\\d\\.]+))*\\s*$", "\\2", tech4Section[matchlines], perl=TRUE)
+    groupNames <- make.names(gsub("^\\s*ESTIMATES DERIVED FROM THE MODEL( FOR ([\\w\\d\\s\\.,]+))*\\s*$", "\\2", tech4Section[matchlines], perl=TRUE))
 
   for (g in 1:length(tech4Subsections)) {
     targetList <- list()

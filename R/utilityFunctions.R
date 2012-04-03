@@ -183,6 +183,8 @@ getSection <- function(sectionHeader, outfiletext, headers="standard") {
     "CREDIBILITY INTERVALS OF STANDARDIZED MODEL RESULTS",
     "CONFIDENCE INTERVALS OF TOTAL, TOTAL INDIRECT, SPECIFIC INDIRECT, AND DIRECT EFFECTS",
     "CONFIDENCE INTERVALS OF STANDARDIZED TOTAL, TOTAL INDIRECT, SPECIFIC INDIRECT,", #omitted "AND DIRECT EFFECTS"
+    "EQUALITY TESTS OF MEANS ACROSS CLASSES USING POSTERIOR PROBABILITY-BASED",
+    "THE FOLLOWING DATA SET\\(S\\) DID NOT RESULT IN A COMPLETED REPLICATION:",
     "RESIDUAL OUTPUT", "MODEL MODIFICATION INDICES", "MODEL COMMAND WITH FINAL ESTIMATES USED AS STARTING VALUES",
     "FACTOR SCORE INFORMATION (COMPLETE DATA)", "SUMMARY OF FACTOR SCORES", "PLOT INFORMATION", "SAVEDATA INFORMATION",
     "Beginning Time:\\s*\\d+:\\d+:\\d+", "MUTHEN & MUTHEN")
@@ -350,17 +352,22 @@ detectColumnNames <- function(filename, modelSection, sectionType="model_results
           
     }
     else if (sectionType == "mod_indices") {
-      if (identical(thisLine, c("M.I.", "E.P.C.", "Std", "E.P.C.", "StdYX", "E.P.C.")))
-        varNames <- c("modV1", "operator", "modV2", "MI", "EPC", "Std_EPC", "StdYX_EPC") 
-                  
-      else if (identical(thisLine, c("M.I.", "E.P.C.")))
-      varNames <- c("modV1", "operator", "modV2", "MI", "EPC")
+      if (identical(thisLine, c("M.I.", "E.P.C.", "Std", "E.P.C.", "StdYX", "E.P.C."))) {
+        varNames <- c("modV1", "operator", "modV2", "MI", "EPC", "Std_EPC", "StdYX_EPC")
+      } else if (identical(thisLine, c("M.I.", "E.P.C."))) {
+        varNames <- c("modV1", "operator", "modV2", "MI", "EPC") }
       
     }
     else if (sectionType == "confidence_intervals"){
       if (identical(thisLine, c("Lower",".5%","Lower","2.5%","Lower","5%",      
                         "Estimate","Upper","5%","Upper","2.5%","Upper",".5%" )))
         varNames <- c("param", "low.5", "low2.5", "low5", "est", "up5", "up2.5", "up.5") 
+    }
+    else if (sectionType == "auxe") { #currently unused
+      if (identical(thisLine, c("Mean", "S.E.", "Mean", "S.E."))) {
+        varNames <- c("Mean", "SE", "Mean", "SE")
+      } else if (identical(thisLine, c("Mean", "S.E."))) {
+        varNames <- c("Mean", "SE") }      
     }
     
     line <- line + 1

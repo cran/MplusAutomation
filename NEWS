@@ -1,3 +1,14 @@
+Version 0.5-1
+- TECH1, RESIDUALS, and TECH4 extraction now support latent class models and multilevel models
+- Added extraction of GAMMA(C) and ALPHA(C) to TECH1 routines.
+- Extracts chi-square difference test results computed using DIFFTEST.
+- compareModels prints DIFFTEST results when available.
+- bugfix: compareModels now prints RMSEA by default when available.
+- remove dependency on reshape package.
+- Extraction of conditional latent class means, auxiliary(e), now supported by readModels.
+- Workaround for bparameters extraction where Mplus does not include categorical latent variable means.
+- bugfix: readModels TECH1 output now extracted properly for TYPE=IMPUTATION.
+
 Version 0.5
 - new function compareModels to compare model summaries and parameters.
 - compareModels supports chi-square difference testing using diffTest=TRUE.

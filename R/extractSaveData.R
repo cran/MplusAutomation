@@ -129,6 +129,10 @@ l_getSavedata_Fileinfo <- function(outfile, outfiletext) {
       #bayesVarTypes <- gsub("\\s+", "\\.", sapply(paramOrderSection, "[", 1), perl=TRUE)
       #bayesVarNames <- gsub("\\s+", "\\.", sapply(paramOrderSection, "[", 2), perl=TRUE)
     
+      #15Mar2012: Workaround for bug: means for categorical latent variables are in output file listing
+      #but these are not actually present in bparameters. Filter out
+      paramOrderSection <- paramOrderSection[!grepl("Parameter\\s+\\d+, \\[ [^#]#\\d+ \\]", paramOrderSection, perl=TRUE)]
+       
       bayesVarNames <- gsub("\\s*,\\s*", "_", paramOrderSection, perl=TRUE)
       bayesVarNames <- gsub("\\[", "MEAN", bayesVarNames, perl=TRUE)
       bayesVarNames <- gsub("\\s*\\]\\s*", "", bayesVarNames, perl=TRUE)
@@ -162,7 +166,7 @@ getSavedata_Data <- function(outfile) {
   fileInfo <- l_getSavedata_Fileinfo(outfile, outfiletext)
   
   if (is.null(fileInfo) || all(is.na(fileInfo))) return(NULL)
-  else if (is.na(fileInfo[["fileVarWidths"]])) return(l_getSavedata_readRawFile(outfile, outfiletext, format="free", fileName=fileInfo[["fileName"]], 
+  else if (is.na(fileInfo[["fileVarWidths"]][1])) return(l_getSavedata_readRawFile(outfile, outfiletext, format="free", fileName=fileInfo[["fileName"]], 
             varNames=fileInfo[["fileVarNames"]]))
   else return(l_getSavedata_readRawFile(outfile, outfiletext, format="fixed", fileName=fileInfo[["fileName"]], 
             varNames=fileInfo[["fileVarNames"]], varWidths=fileInfo[["fileVarWidths"]]))

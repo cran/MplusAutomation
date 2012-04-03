@@ -117,6 +117,7 @@ extractParameters_1section <- function(filename, modelSection, sectionName) {
   #  2) latent classes: Latent Class XYZ
   #  3) two-level structure: Between Level, Within Level
   #  4) categorical latent variables: Categorical Latent Variables
+  #  5) class proportions (only known class output?)
   
   allSectionParameters <- c() #will hold extracted params for all sections
   
@@ -124,8 +125,9 @@ extractParameters_1section <- function(filename, modelSection, sectionName) {
   latentClassMatches <- grep("^\\s*Latent Class (Pattern )*(\\d+\\s*)+$", modelSection, ignore.case=TRUE, perl=TRUE)
   multipleGroupMatches <- grep("^\\s*Group \\w+\\s*$", modelSection, ignore.case=TRUE, perl=TRUE)
   catLatentMatches <- grep("^\\s*Categorical Latent Variables\\s*$", modelSection, ignore.case=TRUE)
+  classPropMatches <- grep("^\\s*Class Proportions\\s*$", modelSection, ignore.case=TRUE)
 
-  topLevelMatches <- sort(c(betweenWithinMatches, latentClassMatches, multipleGroupMatches, catLatentMatches))
+  topLevelMatches <- sort(c(betweenWithinMatches, latentClassMatches, multipleGroupMatches, catLatentMatches, classPropMatches))
   
   if (length(topLevelMatches) > 0) {
     
@@ -155,6 +157,18 @@ extractParameters_1section <- function(filename, modelSection, sectionName) {
         lcNum <- "Categorical.Latent.Variables"
         bwWi <- NULL
       }
+      else if (match %in% classPropMatches) {
+        #the class proportions section is truly "top level"
+        #that is, it starts over in terms of bw/wi and latent classes
+        #multiple groups with cat latent variables is handled by knownclass and results in a latent class
+        #pattern, so don't have to worry about nullifying groupName
+        lcNum <- "Class.Proportions"
+        bwWi <- NULL
+        
+        #N.B.: 15Mar2012. the parse chunk routine can't handle the class proportions output right now
+        #because there is no nesting. Need to come back and fix.
+        #for now, this output is just ignored.
+      }
       
       #if the subsequent top level match is more than 2 lines away, assume that there is a
       #chunk to be parsed. If it's <= 2, then assume that these are just blank lines
@@ -180,7 +194,7 @@ extractParameters_1section <- function(filename, modelSection, sectionName) {
         parsedChunk <- extractParameters_1chunk(filename, thisChunk, columnNames)
         
         #only append if there are some rows
-        if (nrow(parsedChunk) > 0) {
+        if (!is.null(parsedChunk) && nrow(parsedChunk) > 0) {
           parsedChunk$LatentClass <- lcNum
           parsedChunk$BetweenWithin <- bwWi
           parsedChunk$Group <- groupName

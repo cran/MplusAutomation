@@ -14,8 +14,8 @@ The MplusAutomation package leverages the flexibility of the
 \tabular{ll}{
 Package: \tab MplusAutomation\cr
 Type: \tab Package\cr
-Version: \tab 0.5\cr
-Date: \tab 2011-12-08\cr
+Version: \tab 0.5-1\cr
+Date: \tab 2012-04-03\cr
 License: \tab LGPL-3\cr
 LazyLoad: \tab yes\cr
 }
