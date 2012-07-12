@@ -1,6 +1,7 @@
 # TODO: enforce use of #iterator syntax in init section for vars with length > 1
 # TODO: Check array tags used in the init and body sections for validity.
 # TODO: Make sure that classify tags accurately interprets all tags and errors if uninterpretable tag.
+# TODO: Allow for conditional tags to use a list, such as [[nclass#class == 5]]
 
 #note that there's a bit of trickery in interpreting list tags
 #they varnames are stored as only the prefix in the initCollection (no #iterator)

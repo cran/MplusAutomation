@@ -33,14 +33,18 @@ not a list of files.
 
 \item{summaries}{Summary statistics from \code{extractModelSummaries}, having structure as specified by that function}
 \item{parameters}{Model parameters from \code{extractModelParameters}, having structure as specified by that function}
+\item{class_counts}{Latent class counts and proportions for models that include a categorical latent variable}
 \item{mod_indices}{Model modification indices from \code{extractModIndices}, having structure as specified by that function}
 \item{savedata_info}{File information about SAVEDATA files related to this output}
 \item{savedata}{SAVEDATA file as an R \code{data.frame}, as described in \code{getSavedata_Data}}
-\item{bparameters}{a \code{data.frame} containing the draws from the posterior distribution for a Bayesian model that uses the 
-	SAVEDATA BPARAMETERS command}
+\item{bparameters}{an \code{mcmc.list} object containing the draws from the MCMC chains for a Bayesian model that uses the 
+	SAVEDATA: BPARAMETERS command}
 \item{residuals}{a list containing relevant information from OUTPUT: RESIDUALS}
 \item{tech1}{a list containing parameter specification and starting values from OUTPUT: TECH1}
+\item{tech3}{a list containing parameter covariance and correlation matrices from OUTPUT: TECH3}
 \item{tech4}{a list containing means, covariances, and correlations for latent variables from OUTPUT: TECH4}
+\item{lcCondMeans}{conditional latent class means, obtained using auxiliary(e) syntax in latent class models}
+\item{gh5}{a list containing data from the gh5 (graphics) file corresponding to this output. (Requires hdf5 package)}
 }
 
 \author{Michael Hallquist}

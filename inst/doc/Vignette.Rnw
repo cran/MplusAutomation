@@ -24,7 +24,7 @@ columns=fullflexible						%makes character spacing nice
 \setlength{\parskip}{0.3cm}
 \title{MplusAutomation Examples}
 \author{Michael N. Hallquist}
-\date{Package version 0.5-1}
+\date{Package version 0.5-2}
 \maketitle
 \tableofcontents
 \bigskip
@@ -34,8 +34,8 @@ columns=fullflexible						%makes character spacing nice
 \section{Overview}
 This guide provides examples of how to use the functions in the MplusAutomation package.
 The package is designed to automate three major aspects of latent variable modeling in Mplus:
-1) creating related groups of models, 2) running batches of models, and 3) extracting and tabulating
-model parameters and fit statistics.
+1) creating related groups of models, 2) running batches of models, and 3)
+extracting and comparing model parameters and fit statistics.
 
 As of version 0.4, the package supports extraction of summary statistics, but not model parameters, from
 TYPE=EFA models.
@@ -53,9 +53,13 @@ the code below.
 
 \section{Installing and loading the package}
 
-The package was built using \textit{R} 2.13.2, although it should be compatible with
-older versions of \textit{R}. To obtain \textit{R} 2.13.2 for Windows, follow this link:
-\url{http://cran.r-project.org/bin/windows/base/R-2.13.2-win.exe}
+The \lstinline|MplusAutomation| package is compatible with \lstinline|R| and
+\lstinline|Mplus| on Windows, Mac OS X, and Linux platforms.
+
+The package was built using \textit{R} 2.15.1, although it should be compatible
+with most older versions of \textit{R}. To obtain \textit{R} 2.15.1 for Windows,
+follow this link:
+\url{http://cran.r-project.org/bin/windows/base/R-2.15.1-win.exe}
 
 After installing the program and launching \textit{R}, type the following at the command
 line:
@@ -73,6 +77,39 @@ type:
 \textbf{Note:} Mac users may experiences crashes if they have not setup Tcl/Tk properly within R.
 The default distribution of Tcl/Tk shipped with Mac OS X is not compatible with R. Instead, users
 should download and install the Tcl/Tk distribution here: \url{http://cran.r-project.org/bin/macosx/tools}.
+
+\subsection{Determine the version of MplusAutomation on your machine}
+To verify the version of Mplus loaded in your R session, type:
+
+\lstinline|> sessionInfo()|
+
+This should provide a listing of all loaded packages. Example:
+
+\begin{lstlisting}
+R version 2.15.1 (2012-06-22)
+Platform: x86_64-apple-darwin11.4.0 (64-bit)
+
+locale:
+[1] C
+
+attached base packages:
+[1] tcltk     stats     graphics  grDevices utils     datasets  methods  
+[8] base     
+
+other attached packages:
+ [1] MplusAutomation_0.5-2 relimp_1.0-3          xtable_1.7-0         
+ [4] hdf5_1.6.9            coda_0.14-7           lattice_0.20-6       
+ [7] plyr_1.7.1            gsubfn_0.6-3          proto_0.3-9.2        
+[10] rj_1.1.0-2           
+
+loaded via a namespace (and not attached):
+[1] grid_2.15.1   rj.gd_1.1.0-1 tools_2.15.1 
+\end{lstlisting}
+
+\subsection{Updating the package to the latest version}
+As is conventional for \lstinline|R| packages, the latest version of
+\lstinline|MplusAutomation| may be obtained from CRAN using the
+\lstinline|update.packages()| function in an R session.
 
 \section{Exporting data from R to Mplus}
 
@@ -216,11 +253,71 @@ The picture below documents the appearance of this interface:
 Although one can provide parameters to the function to set the initial states of the interface, it is rarely necessary
 to do so, so the syntax above should suffice.
 
+\section{readModels: Extracting all supported data from Mplus output}
+The \lstinline|readModels| function provides a single method for extracting all available information (that MplusAutomation currently handles)
+from one or more output files. This is the preferred method for information
+from Mplus output files. More specifically, this function provides a wrapper
+around four other user-accessible functions: \lstinline|extractModelSummaries|,
+\lstinline|extractModelParameters|, \lstinline|extractModIndices|, and
+\lstinline|getSavedata_Data|. The \lstinline|readModels| function also uses 
+a number of additional functions not accessible to the user to read output
+such as TECH1, TECH3, TECH4, and RESIDUALS. The \lstinline|readModels| function
+extracts model summaries, parameters, modification indices, and saved data
+(using the Mplus SAVEDATA syntax), into a single list object (stored as \lstinline|mplus.model|). The top-level
+elements of the list represent distinct output files and are named by the
+corresponding Mplus output filename. Each \lstinline|mplus.model| element of the
+list is composed of several sub-elements, depending on the information in the
+output file. Elements of an \lstinline|mplus.model| object include:
+
+\begin{enumerate}
+  \item \lstinline|summaries|: model summary statistics
+  \item \lstinline|parameters|: model parameter estimates
+  \item \lstinline|class_counts|: class counts and proportions for models that
+  include a categorical latent variable.
+  \item \lstinline|mod_indices|: model modification indices
+  \item \lstinline|savedata_info|: information about SAVEDATA output
+  corresponding to this model
+  \item \lstinline|savedata|: \lstinline|data.frame| corresponding to
+  SAVEDATA: FILE = ...
+  \item \lstinline|bparameters|: an \lstinline|mcmc.list| object containing the
+  draws from the MCMC chains for a Bayesian model that uses the SAVEDATA: BPARAMETERS command
+  \item \lstinline|residuals|: a list containing relevant information from
+  OUTPUT: RESIDUALS.
+  \item \lstinline|tech1|: a list containing parameter specification and
+  starting values from OUTPUT: TECH1.
+  \item \lstinline|tech3|: a list containing parameter covariance and
+  correlation matrices from OUTPUT: TECH3.
+  \item \lstinline|tech4|: a list containing means, covariances, and
+  correlations for latent variables from OUTPUT: TECH4.
+  \item \lstinline|lcCondMeans|: conditional latent class means, obtained using auxiliary(e) syntax in latent class models
+  \item \lstinline|gh5|: a list containing data from the gh5 (graphics) file
+  corresponding to this output. (Requires hdf5 package)
+\end{enumerate}
+
+Basic example:
+\begin{lstlisting}
+
+allOutput <- readModels("C:/Data_Files/CFANesting", recursive=TRUE)
+
+#assuming there are multiple files in this directory, just model summaries could retained as a data.frame as follows:
+library(plyr)
+justSummaries <- do.call("rbind.fill",sapply(allOutput,"[", "summaries"))
+
+\end{lstlisting}
+
+The \lstinline|rbind.fill| function is provided by the \lstinline|plyr| package and is used to combine data.frames
+where the columns do not align perfectly (as happens when Mplus output files differ in the form of their summary statistics).
+The sapply call is used to extract only the \lstinline|summaries| element from each top-level element (i.e., file).   
+
+
 \section{Extracting model summary statistics}
 Another major purpose of the package is to allow for easy extraction of model
 summary statistics from one or more models. Such summary statistics include items such as
 log-likelihood values, root mean squared error of approximation (RMSEA), and Akaike's Information
 (AIC).
+
+Please note: The preferred way to obtain summary statistics (and other Mplus
+output) is the \lstinline|readModels| function, which is described above.
 
 The \lstinline|extractModelSummaries| function is designed to extract model summaries from a group of models
 located within a directory (or nested within subdirectories). This function returns a \lstinline|data.frame|
@@ -260,7 +357,6 @@ summaryStats <- extractModelSummaries("C:/Program Files/Mplus/Mplus Examples/Use
 
 Here is a more complex filter that matches filenames that begin with the digits 1, 2, or 3 
 (for 1-class, 2-class, or 3-class output files) and also contain the text "Threshold":
-
 
 \begin{lstlisting}
 summaryStats <- extractModelSummaries("C:/Data_Analysis/Multiclass Models", filefilter="[123]{1}-class.*Threshold.*")
@@ -320,7 +416,6 @@ when available:
 	\item \lstinline|T11_LMR_PValue|: TECH11: Lo-Mendell-Rubin Adjusted LRT p-value
 	
 \end{itemize}
-
 
 The \lstinline|extractModelSummaries| function is designed to work in conjunction with functions that generate
 tables of summary statistics (see below).
@@ -599,7 +694,8 @@ this plot is to visualize the means and standard error of each indicator across 
 
 \end{lstlisting}
 
-This relatively brief code snippet buys you a relatively useful plot of this sort:
+This relatively brief code snippet provides a relatively useful plot of this
+sort:
 
 \begin{figure}[H]
 \begin{center}
@@ -611,31 +707,6 @@ This relatively brief code snippet buys you a relatively useful plot of this sor
 
 %Similarly, a latent class analysis of ordered categorical data can be visualized using \textit{R}
 %by plotting the item probabilities across latent classes.
-
-\section{readModels: Extracting all supported data from Mplus output}
-The \lstinline|readModels| function provides a single method for extracting all available information (that MplusAutomation currently handles)
-from one or more output files. More specifically, this function provides a wrapper around four other functions: \lstinline|extractModelSummaries|,
-\lstinline|extractModelParameters|, \lstinline|extractModIndices|, and \lstinline|getSavedata_Data|. The \lstinline|readModels| function will extract model summaries,
-parameters, modification indices, and saved data (using the Mplus SAVEDATA syntax), respectively, into a single list. The top-level elements of the list
-represent distinct output files and are named by the corresponding Mplus output filename. Each top-level element is composed of up to four
-sub-elements: \lstinline|summaries|, \lstinline|parameters|, \lstinline|mod_indices|, and \lstinline|savedata|. The structure of each of these elements is the same
-as the individual functions named above. Thus, the major purpose is to provide a single function that reads Mplus output, rather than
-requiring multiple calls per file.
-
-Basic example:
-\begin{lstlisting}
-
-allOutput <- readModels("C:/Data_Files/CFANesting", recursive=TRUE)
-
-#assuming there are multiple files in this directory, just model summaries could retained as a data.frame as follows:
-library(plyr)
-justSummaries <- do.call("rbind.fill",sapply(allOutput,"[", "summaries"))
-
-\end{lstlisting}
-
-The \lstinline|rbind.fill| function is provided by the \lstinline|plyr| package and is used to combine data.frames
-where the columns do not align perfectly (as happens when Mplus output files differ in the form of their summary statistics).
-The sapply call is used to extract only the \lstinline|summaries| element from each top-level element (i.e., file).   
 
 %COMPARE MODELS DOCUMENTATION
 %***********************************************************************************

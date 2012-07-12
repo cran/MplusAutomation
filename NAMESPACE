@@ -2,6 +2,8 @@ import(xtable)
 import(tcltk)
 import(plyr)
 import(relimp)
+import(coda)
+
 
 export(runModels, runModels_Interactive, extractModelSummaries, 
 	extractModelParameters, extractModIndices, getSavedata_Data, getSavedata_Fileinfo,

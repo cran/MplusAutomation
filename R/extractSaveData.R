@@ -172,7 +172,7 @@ getSavedata_Data <- function(outfile) {
             varNames=fileInfo[["fileVarNames"]], varWidths=fileInfo[["fileVarWidths"]]))
 }
 
-getSavedata_Bparams <- function(outfile) {
+getSavedata_Bparams <- function(outfile, discardBurnin=TRUE) {
   #exposed wrapper for l_getSavedata_readRawFile, which pulls bayesian parameters into a data.frame
   if(!file.exists(outfile)) {
     stop("Cannot locate outfile: ", outfile)
@@ -188,7 +188,70 @@ getSavedata_Bparams <- function(outfile) {
   fileInfo <- l_getSavedata_Fileinfo(outfile, outfiletext)
   
   if (is.null(fileInfo) || all(is.na(fileInfo))) return(NULL)
-  else return(l_getSavedata_readRawFile(outfile, outfiletext, format="free", fileName=fileInfo[["bayesFile"]], varNames=fileInfo[["bayesVarNames"]]))
+  else return(l_getSavedata_Bparams(outfile, outfiletext, fileInfo, discardBurnin=discardBurnin))
+  
+}
+
+l_getSavedata_Bparams <- function(outfile, outfiletext, fileInfo, discardBurnin=TRUE) {
+  require(coda)
+  
+  #missing fileInfo
+  if (is.null(fileInfo)) return(NULL)
+  
+  bp <- l_getSavedata_readRawFile(outfile, outfiletext, format="free", fileName=fileInfo[["bayesFile"]], varNames=fileInfo[["bayesVarNames"]])
+  
+  if (is.null(bp)) return(NULL)
+  
+  #for(i in 1:nrow(bp)) {
+  #  if (i > 1 && bp$Chain.number[i] != bp$Chain.number[i-1]) cat(i, " ", bp$Chain.number[i], "\n")
+  #}
+  
+  #logic and code adapted from Florian Boeing-Messing.
+  #Mplus runs 100 iterations for each chain, and then computes R-hat for each parameter.
+  #If R-hat drops below a critical value for Potential Scale Reduction ~ 1.1, the chains are treated as converged (the values generated among chains are indistinguishable)
+  #Then draws from the converged chains are obtained.
+  #Thus, the second half of each chain contains valid draws, whereas the first half is burn-in
+  
+  if (!"Chain.number" %in% names(bp)) {
+    warning("Chain number not in bparameters file. Assuming 1 chain.")
+    bp$Chain.number <- 1
+  } else {
+    #sort by chain number
+    bp <- bp[sort.list(bp[,"Chain.number"]),] 
+  }
+  
+  #number of chains
+  nchains <- max(bp[,"Chain.number"])
+  
+  #Each section contains two halves (burn-in and valid draws)
+  nsections <- 2*nchains
+
+  lengthsec <- nrow(bp)/nsections
+  
+  ind <- rep(rep(c(FALSE, TRUE), each=lengthsec), nchains)
+  
+  bp$Burnin <- factor(ind, levels=c(FALSE, TRUE), labels=c("burn_in", "valid_draw"))
+    
+  #convert to mcmc.list object to be usable with coda
+  if (nchains > 1) {
+    #only keep numeric columns (required by mcmc objects)
+    #divide into burn-in versus draw
+    bp.burnin <- split(bp[,sapply(bp, is.numeric)], list(bp$Burnin))
+
+    #divide the draws by chain and convert to mcmc list
+    bp.split <- lapply(bp.burnin, function(bpsub) {
+          mcmc.list(lapply(split(bpsub[,sapply(bpsub, is.numeric)], list(bpsub$Chain.number)), mcmc))  
+        })
+  } else {
+    #just one chain, so divide into burn-in versus draw
+    bp.split <- lapply(split(bp[,sapply(bp, is.numeric)], list(bp$Burnin)), mcmc)
+  }
+  
+  if(discardBurnin) {
+    bp.split <- bp.split[["valid_draw"]]
+  }
+  
+  return(bp.split)
   
 }
 

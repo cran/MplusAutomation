@@ -1,5 +1,5 @@
 readModels <- function(target=getwd(), recursive=FALSE, filefilter) {
-	#large wrapper function to read summaries, parameters, and savedata from one or more output files.
+  #large wrapper function to read summaries, parameters, and savedata from one or more output files.
 	
 	outfiles <- getOutFileList(target, recursive, filefilter)
 	
@@ -14,6 +14,7 @@ readModels <- function(target=getwd(), recursive=FALSE, filefilter) {
 
     allFiles[[listID]]$summaries <- extractSummaries_1file(outfiletext, curfile)
     allFiles[[listID]]$parameters <- extractParameters_1file(outfiletext, curfile)
+    allFiles[[listID]]$class_counts <- extractClassCounts(outfiletext, curfile) #latent class counts
 		allFiles[[listID]]$mod_indices <- extractModIndices_1file(outfiletext, curfile)
     allFiles[[listID]]$savedata_info <- fileInfo <- l_getSavedata_Fileinfo(curfile, outfiletext)
     
@@ -23,13 +24,14 @@ readModels <- function(target=getwd(), recursive=FALSE, filefilter) {
     else
       allFiles[[listID]]$savedata <- l_getSavedata_readRawFile(curfile, outfiletext, format="fixed", fileName=fileInfo[["fileName"]], varNames=fileInfo[["fileVarNames"]], varWidths=fileInfo[["fileVarWidths"]])
     
-    allFiles[[listID]]$bparameters <- l_getSavedata_readRawFile(curfile, outfiletext, format="free", fileName=fileInfo[["bayesFile"]], varNames=fileInfo[["bayesVarNames"]]) 
+    allFiles[[listID]]$bparameters <- l_getSavedata_Bparams(curfile, outfiletext, fileInfo, discardBurnin=FALSE)
     allFiles[[listID]]$residuals <- extractResiduals(outfiletext, curfile)
     allFiles[[listID]]$tech1 <- extractTech1(outfiletext, curfile) #parameter specification
+    allFiles[[listID]]$tech3 <- extractTech3(outfiletext, curfile) #covariance/correlation matrix of parameter estimates
     allFiles[[listID]]$tech4 <- extractTech4(outfiletext, curfile) #latent means
     
     #aux(e) means
-    allFiles[[listID]]$eqMeans <- extractAuxE_1file(outfiletext, curfile)
+    allFiles[[listID]]$lcCondMeans <- extractAuxE_1file(outfiletext, curfile)
     
     #add class tag for use with compareModels
     class(allFiles[[listID]]) <- c("list", "mplus.model")
@@ -38,6 +40,17 @@ readModels <- function(target=getwd(), recursive=FALSE, filefilter) {
     #cleanup summary columns containing only NAs
     for (col in names(allFiles[[listID]]$summaries)) {
       if (all(is.na(allFiles[[listID]]$summaries[[col]]))) allFiles[[listID]]$summaries[[col]] <- NULL
+    }
+    
+    #check for gh5 file, and load if possible
+    gh5fname <- sub("^(.*)\\.out$", "\\1.gh5", curfile, ignore.case=TRUE, perl=TRUE)
+    if (file.exists(gh5fname)) {
+      if(suppressWarnings(require(hdf5))) {
+        #use load=FALSE to return named list, which is appended to model object.
+        gh5 <- hdf5load(file=gh5fname, load=FALSE, verbosity=0, tidy=TRUE)
+        allFiles[[listID]]$gh5 <- gh5
+      } else { warning("Unable to read gh5 file because hdf5 package not installed. Please install.packages(\"hdf5\")\n  Note: this depends on having an installation of the hdf5 library on your system.") }
+      
     }
     
 	}
@@ -1069,6 +1082,20 @@ extractTech1 <- function(outfiletext, filename) {
   
 }
 
+extractTech3 <- function(outfiletext, filename) {
+  tech3Section <- getSection("^TECHNICAL 3 OUTPUT$", outfiletext)
+  if (is.null(tech3Section)) return(list()) #no tech3 output
+  
+  tech3List <- list()
+  
+  tech3List[["paramCov"]] <- matrixExtract(tech3Section, "ESTIMATED COVARIANCE MATRIX FOR PARAMETER ESTIMATES", filename)
+  tech3List[["paramCor"]] <- matrixExtract(tech3Section, "ESTIMATED CORRELATION MATRIX FOR PARAMETER ESTIMATES", filename)
+  
+  class(tech3List) <- c("list", "mplus.tech3")
+  
+  return(tech3List)
+}
+
 extractTech4 <- function(outfiletext, filename) {
   tech4Section <- getSection("^TECHNICAL 4 OUTPUT$", outfiletext)
   if (is.null(tech4Section)) return(list()) #no tech4 output
@@ -1084,8 +1111,9 @@ extractTech4 <- function(outfiletext, filename) {
     warning("No sections found within TECH4 output.")
     return(list())
   }
-  else if (length(tech4Subsections) > 1)
+  else if (length(tech4Subsections) > 1) {
     groupNames <- make.names(gsub("^\\s*ESTIMATES DERIVED FROM THE MODEL( FOR ([\\w\\d\\s\\.,]+))*\\s*$", "\\2", tech4Section[matchlines], perl=TRUE))
+  }
 
   for (g in 1:length(tech4Subsections)) {
     targetList <- list()
@@ -1108,8 +1136,100 @@ extractTech4 <- function(outfiletext, filename) {
   return(tech4List)
 }
 
+extractTech10 <- function(outfiletext, filename) {
+  tech10Section <- getSection("^TECHNICAL 10 OUTPUT$", outfiletext)
+  if (is.null(tech10Section)) return(list()) #no tech4 output
+  
+  tech10List <- list()
+  
+  
+}
 
-#main worker function for extract Mplus matrix output
+extractClassCounts <- function(outfiletext, filename) {
+
+  ####
+  #TODO: Implement class count extraction for multiple categorical latent variable models.
+  #Example: UG7.21
+  #Output is quite different because of latent class patterns, transition probabilities, etc.
+  
+  #helper function for three-column class output
+  getClassCols <- function(sectiontext) {
+    #identify lines of the form class number, class count, class proportion: e.g., 1		136.38		.2728
+    numberLines <- grep("^\\s*\\d+\\s+[0-9\\.-]+\\s+[0-9\\.-]+\\s*$", sectiontext, perl=TRUE)
+    
+    if (length(numberLines) > 0) {
+      #row bind each line, convert to numeric, and store as data.frame
+      counts <- data.frame(do.call(rbind, lapply(strsplit(trimSpace(sectiontext[numberLines]), "\\s+", perl=TRUE), as.numeric)))
+      if (!ncol(counts) == 3) {
+        warning("Number of columns for model class counts is not three.")
+        return(NULL)
+      }
+      
+      names(counts) <- c("class", "count", "proportion")
+      
+      #store counts as integer
+      counts <- transform(counts, class=as.integer(class))
+      return(counts)
+    } else {
+      return(NULL)
+    }
+    
+  }
+  
+  countlist <- list()
+    
+  modelCounts <- getSection("^FINAL CLASS COUNTS AND PROPORTIONS FOR THE LATENT CLASSES$", outfiletext)
+  countlist[["modelEstimated"]] <- getClassCols(modelCounts)
+  
+  ppCounts <- getSection("^FINAL CLASS COUNTS AND PROPORTIONS FOR THE LATENT CLASS PATTERNS$", outfiletext)
+  countlist[["posteriorProb"]] <- getClassCols(ppCounts)
+  
+  mostLikelyCounts <- getSection("^CLASSIFICATION OF INDIVIDUALS BASED ON THEIR MOST LIKELY LATENT CLASS MEMBERSHIP$", outfiletext)
+  countlist[["mostLikely"]] <- getClassCols(mostLikelyCounts)
+  
+  mostLikelyProbs <- getSection("^Average Latent Class Probabilities for Most Likely Latent Class Membership \\(Row\\)$", outfiletext)
+  
+  if (length(mostLikelyProbs) > 0) {
+    
+    #Example:
+    #Average Latent Class Probabilities for Most Likely Latent Class Membership (Row)
+    #by Latent Class (Column)
+    #
+    #  			1        2
+    #
+    #  1   0.986    0.014
+    #  2   0.030    0.970
+    
+    #A bit of a wonky section. Some notes: 
+    # 1) Rows represent those hard classified into that class.
+    # 2) Rows sum to 1.0 and represent the summed average posterior probabilities of all the class assignment possibilities.
+    # 3) Columns represent average posterior probabilitity of being in class 1 for those hard classified as 1 or 2.
+    # 4) High diagonal indicates that hard classification matches posterior probability patterns.
+    
+    #processing is also custom.
+    #first line is "by Latent Class (Column)"
+    #second line is blank
+    #third line contains the number of classes, which is useful for matrix setup.
+    
+    classLabels <- as.numeric(strsplit(trimSpace(mostLikelyProbs[3]), "\\s+", perl=TRUE)[[1]])
+    mlpp_probs <- matrix(NA, nrow=length(classLabels), ncol=length(classLabels), dimnames=
+            list(hardClassified=paste("ml.c", classLabels, sep=""),
+                posteriorProb=paste("pp.c", classLabels, sep="")))
+    
+    #fourth line is blank
+    #fifth line begins probabilities
+    firstProbLine <- 5
+    blankLine <- which(mostLikelyProbs[firstProbLine:length(mostLikelyProbs)] == "")[1] + (firstProbLine - 1) #need to add offset to get absolute position in overall section
+    probSection <- mostLikelyProbs[firstProbLine:(blankLine-1)]
+    mlpp_probs[,] <- do.call(rbind, lapply(strsplit(trimSpace(probSection), "\\s+", perl=TRUE), as.numeric))[,-1]
+    
+    countlist[["avgProbs.mostLikely"]] <- mlpp_probs
+  }
+
+  return(countlist)
+}
+
+#main worker function for extracting Mplus matrix output
 #where matrices are spread across blocks to keep within width constraints
 #example: tech1 matrix output.
 matrixExtract <- function(outfiletext, headerLine, filename) {
@@ -1125,7 +1245,15 @@ matrixExtract <- function(outfiletext, headerLine, filename) {
       block <- matLines[[m]][c(-1,-2)]
       block <- block[block != ""] #drop blank lines
       
+      #10Jul2012: Occasionally, Mplus includes a blank line block just for fun... like this:
+      #Residuals for Covariances/Correlations/Residual Correlations
+      #STRES4
+      #________
+      #in this case, skip the block
+      if (length(block) == 0) next
+      
       splitData <- strsplit(trimSpace(block), "\\s+", perl=TRUE)
+
       #alternative to remove blank lines after strsplit (above easier to read)
       #remove blank lines by comparing against character(0)
       #splitData2 <- splitData[sapply(splitData, function(x) !identical(x, character(0)))]

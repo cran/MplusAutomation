@@ -116,7 +116,8 @@ compareModels <- function(m1, m2, show="all", equalityMargin=c(param=0.0001, pva
             cd <- (H0m$Parameters*H0m$LLCorrectionFactor - H1m$Parameters*H1m$LLCorrectionFactor)/(H0m$Parameters - H1m$Parameters)
             
             ChiSqDiff <- -2*(H0m$LL - H1m$LL)/cd
-            dfDiff <- (H0m$ChiSqM_DF - H1m$ChiSqM_DF)
+            #use difference in the number of parameters for dfDiff since for some models, only LL and Params are available.
+            dfDiff <- (H1m$Parameters - H0m$Parameters)
             
             cat("\n  MLR Chi-Square Difference Test for Nested Models Based on Loglikelihood\n  -----------------------------------------------------------------------\n\n")
             cat("  Difference Test Scaling Correction: ", cd, "\n")
@@ -156,6 +157,8 @@ compareModels <- function(m1, m2, show="all", equalityMargin=c(param=0.0001, pva
   #fuzzy equality
   testEquality <- function(v1, v2, margin=0.0000) {
     if (length(v1) != length(v2)) stop ("v1 length != v2 length")
+    
+    if (!is.numeric(v1) || !is.numeric(v2)) stop("Non-numeric arguments passed to testEquality.")
     
     retVec <- aaply(cbind(v1, v2), 1, function(row) {
           if(abs(row["v1"]-row["v2"]) <= margin) return(TRUE)
