@@ -24,7 +24,7 @@ columns=fullflexible						%makes character spacing nice
 \setlength{\parskip}{0.3cm}
 \title{MplusAutomation Examples}
 \author{Michael N. Hallquist}
-\date{Package version 0.5-2}
+\date{Package version 0.5-3}
 \maketitle
 \tableofcontents
 \bigskip
@@ -97,7 +97,7 @@ attached base packages:
 [8] base     
 
 other attached packages:
- [1] MplusAutomation_0.5-2 relimp_1.0-3          xtable_1.7-0         
+ [1] MplusAutomation_0.5-3 relimp_1.0-3          xtable_1.7-0         
  [4] hdf5_1.6.9            coda_0.14-7           lattice_0.20-6       
  [7] plyr_1.7.1            gsubfn_0.6-3          proto_0.3-9.2        
 [10] rj_1.1.0-2           

@@ -1,10 +1,20 @@
+Version 0.5-3
+- bugfix:  in runModels, Mplus_command with spaces would cause error because not quoted.
+- bugfix:  testBParamConstraint and testBParamCompoundConstraint did not appropriately combine mcmc lists.
+- feature: readModels extracts TECH3 output from SAVEDATA: TECH3. Stored in $tech3$paramCov.savedata when available.
+           (Thanks to Joe Glass for code to extract free format matrices.)
+- feature: testBParamCompoundConstraint and testBParamConstraint now accept mplus.model object (from readModels).
+- feature: mplus.traceplot to plot the MCMC chain convergence for Bayesian models that have a gh5 file and PLOT: TYPE=PLOT2.
+           (Thanks to Joe Glass for initial plotting code.)
+- include empty gh5 list if unable to read.
+
 Version 0.5-2
 - feature: divide BPARAMETERS by MCMC chain and separate burn-in (first half) versus valid draw (second half).
            (Adapted from code and insights graciously provided by Florian Boeing-Messing.) 
 - feature: Bparameters stored as mcmc.list to promote compatibility with coda package (coda now imported).
            (Thanks to Davood Tofighi for the suggestion.)
 - feature: readModels imports corresponding gh5 file, if it exists, into list element gh5 (requires hdf5 package).
-- feature: readModels extracts tech3 parameter covariance and correlation matrices from output, when available (OUTPUT: TECH3).
+- feature: readModels extracts TECH3 parameter covariance and correlation matrices from output, when available (OUTPUT: TECH3).
 - feature: readModels extracts latent class counts and probabilities (only works for models with one categorical latent variable).
 - bugfix:  Corrected failure to identify "SAMPLE STATISTICS FOR ESTIMATED FACTOR SCORES" header.
 - bugfix:  Chi-square difference test for MLR based on LL did not work for models with only LL and Parameters.

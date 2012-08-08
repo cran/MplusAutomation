@@ -9,4 +9,5 @@ export(runModels, runModels_Interactive, extractModelSummaries,
 	extractModelParameters, extractModIndices, getSavedata_Data, getSavedata_Fileinfo,
 	getSavedata_Bparams, showSummaryTable, LatexSummaryTable, HTMLSummaryTable,
 	createModels, prepareMplusData, readModels, testBParamConstraint,
-	testBParamCompoundConstraint, compareModels, lookupTech1Parameter)
+	testBParamCompoundConstraint, compareModels, lookupTech1Parameter,
+	mplus.traceplot)

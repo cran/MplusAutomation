@@ -347,7 +347,8 @@ runModels <- function(directory=getwd(), recursive=FALSE, showOutput=FALSE, repl
       
 		#navigate to working directory in DOS using cd command so that Mplus finds the appropriate files (support rel paths)
     #switched over to use relative filename because of problems in Mplus via Wine misinterpreting absolute paths due to forward slashes.
-		command <- paste("cd \"", dirtocd, "\" && ", Mplus_command, " \"", inputSplit$filename, "\"", sep="")
+    #25Jul2012: Quote Mplus_command in case it's in a path with spaces.
+		command <- paste("cd \"", dirtocd, "\" && \"", Mplus_command, "\" \"", inputSplit$filename, "\"", sep="")
     
     #allow for divergence if the package is being run in Linux (Mplus via wine)
 		if (.Platform$OS.type == "windows") {

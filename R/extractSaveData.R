@@ -37,7 +37,7 @@ l_getSavedata_Fileinfo <- function(outfile, outfiletext) {
       "Bayesian Parameters", #bparameters
       "Within and between sample statistics with Weight matrix", #swmatrix
       "Estimates", #estimates
-	  "Order of variables" #monte carlo
+      "Order of variables" #monte carlo
   )
   
   #extract entire savedata section
@@ -52,7 +52,7 @@ l_getSavedata_Fileinfo <- function(outfile, outfiletext) {
   
   #initialize these variables to empty character strings so that list return value is complete
   #important in cases where some savedata output available, but other sections unused
-  listVars <- c("fileName", "fileVarNames", "fileVarFormats", "fileVarWidths", "bayesFile", "bayesVarNames")
+  listVars <- c("fileName", "fileVarNames", "fileVarFormats", "fileVarWidths", "bayesFile", "bayesVarNames", "tech3File")
   l_ply(listVars, assign, value=NA_character_, envir=environment())
   
   #process FILE= section (individual-level data from analysis)
@@ -144,9 +144,19 @@ l_getSavedata_Fileinfo <- function(outfile, outfiletext) {
   #future: plausible values output from Bayesian runs
   #PLAUSIBLE VALUE MEAN, MEDIAN, SD, AND PERCENTILES FOR EACH OBSERVATION
   
+  #tech3 output
+  tech3Section <- getSection("^\\s*Estimated Covariance Matrix for the Parameter Estimates\\s*$", savedataSection, sectionStarts)
+  
+  if (!is.null(tech3Section)) {
+    tech3FileStart <- grep("^\\s*Save file\\s*$", tech3Section, ignore.case=TRUE, perl=TRUE)
+    if (length(tech3FileStart) > 0) {
+      tech3File <- trimSpace(tech3Section[tech3FileStart+1])      
+    }
+  }
+
   #return the file information as a list
   return(list(fileName=fileName, fileVarNames=fileVarNames, fileVarFormats=fileVarFormats, fileVarWidths=fileVarWidths,
-          bayesFile=bayesFile, bayesVarNames=bayesVarNames)) #bayesVarTypes=bayesVarTypes, 
+          bayesFile=bayesFile, bayesVarNames=bayesVarNames, tech3File=tech3File)) #bayesVarTypes=bayesVarTypes, 
 }
 
 #READ FILE= SAVEDATA OUTPUT
@@ -250,6 +260,8 @@ l_getSavedata_Bparams <- function(outfile, outfiletext, fileInfo, discardBurnin=
   if(discardBurnin) {
     bp.split <- bp.split[["valid_draw"]]
   }
+  
+  class(bp.split) <- c(class(bp.split), "mplus.bparameters")
   
   return(bp.split)
   

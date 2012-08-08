@@ -27,7 +27,7 @@ readModels <- function(target=getwd(), recursive=FALSE, filefilter) {
     allFiles[[listID]]$bparameters <- l_getSavedata_Bparams(curfile, outfiletext, fileInfo, discardBurnin=FALSE)
     allFiles[[listID]]$residuals <- extractResiduals(outfiletext, curfile)
     allFiles[[listID]]$tech1 <- extractTech1(outfiletext, curfile) #parameter specification
-    allFiles[[listID]]$tech3 <- extractTech3(outfiletext, curfile) #covariance/correlation matrix of parameter estimates
+    allFiles[[listID]]$tech3 <- extractTech3(outfiletext, fileInfo, curfile) #covariance/correlation matrix of parameter estimates
     allFiles[[listID]]$tech4 <- extractTech4(outfiletext, curfile) #latent means
     
     #aux(e) means
@@ -43,16 +43,15 @@ readModels <- function(target=getwd(), recursive=FALSE, filefilter) {
     }
     
     #check for gh5 file, and load if possible
+    gh5 <- list()
     gh5fname <- sub("^(.*)\\.out$", "\\1.gh5", curfile, ignore.case=TRUE, perl=TRUE)
     if (file.exists(gh5fname)) {
       if(suppressWarnings(require(hdf5))) {
         #use load=FALSE to return named list, which is appended to model object.
         gh5 <- hdf5load(file=gh5fname, load=FALSE, verbosity=0, tidy=TRUE)
-        allFiles[[listID]]$gh5 <- gh5
       } else { warning("Unable to read gh5 file because hdf5 package not installed. Please install.packages(\"hdf5\")\n  Note: this depends on having an installation of the hdf5 library on your system.") }
-      
     }
-    
+    allFiles[[listID]]$gh5 <- gh5
 	}
 
   if (length(outfiles)==1)
@@ -1082,15 +1081,86 @@ extractTech1 <- function(outfiletext, filename) {
   
 }
 
-extractTech3 <- function(outfiletext, filename) {
+#Function for reading "free" output where a sequence of values populates a matrix
+
+
+
+
+
+
+
+
+
+extractFreeFile <- function(filename, outfile, make_symmetric=TRUE) {
+  #Adapted from code graciously provided by Joe Glass.
+  
+  if (is.null(filename) || is.na(filename)) return(NULL)
+  
+  #TODO: make this filename building into a function (duped from read raw)
+  outfileDirectory <- splitFilePath(outfile)$directory
+  savedataSplit <- splitFilePath(filename)
+  
+  #if outfile target directory is non-empty, but savedataFile is without directory, then append
+  #outfile directory to savedataFile. This ensures that R need not be in the working directory
+  #to read the savedataFile. But if savedataFile has an absolute directory, don't append
+  
+  #if savedata directory is present and absolute, or if no directory in outfile, just use filename as is
+  if (!is.na(savedataSplit$directory) && savedataSplit$absolute)
+    savedataFile <- filename #just use savedata filename if has absolute path
+  else if (is.na(outfileDirectory))
+    savedataFile <- filename #just use savedata filename if outfile is missing path (working dir)
+  else
+    savedataFile <- file.path(outfileDirectory, filename) #savedata path relative or absent and outfile dir is present
+  
+  if (!file.exists(savedataFile)) {
+    warning("Cannot read file: ", filename)
+    return(NULL)
+  }
+  
+  values <- scan(savedataFile, what="character", strip.white=FALSE, blank.lines.skip=FALSE)
+  matrix.size <- function(x) {
+    # per algebra of quadratic equations: p is the # of rows & columns in a symmetric
+    # matrix given x unique covariance elements (the lower triangle plus diagonal).
+    # This was constructed from the equation x = p(p+1)/2.
+    p <- (-1/2) + sqrt(2*x + (1/4))
+    # if p is not an integer, having x elements does not result in a symmetric matrix
+    p.isinteger <- !length(grep("[^[:digit:]]", as.character(p)))
+    if (p.isinteger) {
+      return (p)
+    } else {
+      cat("The length of the supplied vector is not appropriate to generate the matrix. Please check the data file.")
+      return(NULL)
+    }
+  }
+  
+  matSize <- matrix.size(length(values))
+  mat <- matrix(NA_real_, nrow=matSize, ncol=matSize, 
+      dimnames=list(1:matSize, 1:matSize)) # create empty symmetric matrix
+  mat[upper.tri(mat, diag=TRUE)] <- as.numeric(values) # import savedata information into the upper triangle (plus diagonal) of the matrix
+  
+  if (make_symmetric) {
+    mat[lower.tri(mat)] <- t(mat)[lower.tri(mat)] #populate lower triangle
+  } else {
+    mat <- t(mat) # transpose the matrix to create a lower triangular matrix (plus diagonal)  
+  }
+  
+  return(mat)
+}
+
+extractTech3 <- function(outfiletext, savedata_info, filename) {
   tech3Section <- getSection("^TECHNICAL 3 OUTPUT$", outfiletext)
   if (is.null(tech3Section)) return(list()) #no tech3 output
   
   tech3List <- list()
-  
   tech3List[["paramCov"]] <- matrixExtract(tech3Section, "ESTIMATED COVARIANCE MATRIX FOR PARAMETER ESTIMATES", filename)
   tech3List[["paramCor"]] <- matrixExtract(tech3Section, "ESTIMATED CORRELATION MATRIX FOR PARAMETER ESTIMATES", filename)
   
+  if (!is.null(savedata_info) && !is.na(savedata_info$tech3File)) {
+    tech3List[["paramCov.savedata"]] <- extractFreeFile(savedata_info$tech3File, filename, make_symmetric=TRUE)
+  } else {
+    tech3List[["paramCov.savedata"]] <- NULL
+  }
+    
   class(tech3List) <- c("list", "mplus.tech3")
   
   return(tech3List)
@@ -1141,7 +1211,6 @@ extractTech10 <- function(outfiletext, filename) {
   if (is.null(tech10Section)) return(list()) #no tech4 output
   
   tech10List <- list()
-  
   
 }
 

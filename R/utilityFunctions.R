@@ -28,8 +28,20 @@ lookupTech1Parameter <- function(tech1Output, paramNumber) {
   
 }
 
-
 testBParamConstraint <- function(bparams, coef1, operator, coef2) {
+  #allow input to be mplus.model
+  if (inherits(bparams, "mplus.model")) {
+    bparams <- bparams$bparameters
+  }
+  
+  #restrict to valid draws (if not already dropped)
+  if (length(bparams) == 2 && names(bparams) == c("burn_in", "valid_draw")) {
+    bparams <- bparams$valid_draw
+  }
+  
+  #combine into one data.frame
+  bparams <- as.data.frame(do.call(rbind, bparams))
+  
   cat("Number of iterations: ", nrow(bparams), "\n")
   ineq <- eval(parse(text=paste("bparams$", coef1, operator, "bparams$", coef2, sep="")))
   counts <- table(ineq)
@@ -42,6 +54,19 @@ testBParamConstraint <- function(bparams, coef1, operator, coef2) {
 }
 
 testBParamCompoundConstraint <- function(bparams, test) {
+  #allow input to be mplus.model
+  if (inherits(bparams, "mplus.model")) {
+    bparams <- bparams$bparameters
+  }
+  
+  #restrict to valid draws (if not already dropped)
+  if (length(bparams) == 2 && names(bparams) == c("burn_in", "valid_draw")) {
+    bparams <- bparams$valid_draw
+  }
+  
+  #combine into one data.frame
+  bparams <- as.data.frame(do.call(rbind, bparams))
+  
   cat("Number of iterations: ", nrow(bparams), "\n")
   attach(bparams)
   testResult <- eval(parse(text=test))
@@ -158,7 +183,7 @@ getSection_Blanklines <- function(sectionHeader, outfiletext) {
 
 getSection <- function(sectionHeader, outfiletext, headers="standard") {
   #encode the top-level major headers here, but allow for custom headers to be passed in
-  if (headers[1] == "standard") headers <- c("INPUT INSTRUCTIONS", "SUMMARY OF ANALYSIS",
+  if (headers[1L] == "standard") headers <- c("INPUT INSTRUCTIONS", "SUMMARY OF ANALYSIS",
     "SUMMARY OF DATA FOR THE FIRST DATA SET", "SUMMARY OF DATA FOR THE FIRST REPLICATION",
     "SUMMARY OF MISSING DATA PATTERNS FOR THE FIRST REPLICATION",
     "SUMMARY OF MISSING DATA PATTERNS",
