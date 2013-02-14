@@ -225,7 +225,7 @@ runModels <- function(directory=getwd(), recursive=FALSE, showOutput=FALSE, repl
   
   #if the function gets interrupted (e.g., the user presses escape), kill the Mplus process (doesn't happen automatically).
   exitRun <- function() {
-    require(plyr)
+    #require(plyr) #shift to import
     
     if(normalComplete == FALSE && isLogOpen()) {
       writeLines("Run terminated abnormally", logTarget)

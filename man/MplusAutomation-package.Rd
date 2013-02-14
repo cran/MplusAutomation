@@ -14,8 +14,8 @@ The MplusAutomation package leverages the flexibility of the
 \tabular{ll}{
 Package: \tab MplusAutomation\cr
 Type: \tab Package\cr
-Version: \tab 0.5-3\cr
-Date: \tab 2012-08-08\cr
+Version: \tab 0.5-4\cr
+Date: \tab 2013-02-14\cr
 License: \tab LGPL-3\cr
 LazyLoad: \tab yes\cr
 }
@@ -53,7 +53,7 @@ In addition to the major functions above, a function for converting an R data.fr
 names.
 }
 \author{
-Michael Hallquist
+Michael Hallquist and Joshua Wiley
 
 Maintainer: Michael Hallquist <michael.hallquist@gmail.com>
 }
