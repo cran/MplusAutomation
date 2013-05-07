@@ -50,18 +50,18 @@
 #' }
 readModels <- function(target=getwd(), recursive=FALSE, filefilter) {
   #large wrapper function to read summaries, parameters, and savedata from one or more output files.
-  
+
   outfiles <- getOutFileList(target, recursive, filefilter)
-  
+
   allFiles <- list()
   for (curfile in outfiles) {
     cat("Reading model: ", curfile, "\n")
     #if not recursive, then each element is uniquely identified (we hope!) by filename alone
     if (recursive==FALSE)	listID <- make.names(splitFilePath(curfile)$filename) #each list element is named by the respective file
     else listID <- make.names(curfile) #each list element is named by the respective file
-    
+
     outfiletext <- scan(curfile, what="character", sep="\n", strip.white=FALSE, blank.lines.skip=FALSE, quiet=TRUE)
-    
+
     allFiles[[listID]]$input <- inp <- extractInput_1file(outfiletext, curfile)
     warn_err <- extractWarningsErrors_1file(outfiletext, curfile, input=inp)
     allFiles[[listID]]$warnings <- warn_err$warnings
@@ -71,14 +71,14 @@ readModels <- function(target=getwd(), recursive=FALSE, filefilter) {
     allFiles[[listID]]$class_counts <- extractClassCounts(outfiletext, curfile) #latent class counts
     allFiles[[listID]]$mod_indices <- extractModIndices_1file(outfiletext, curfile)
     allFiles[[listID]]$savedata_info <- fileInfo <- l_getSavedata_Fileinfo(curfile, outfiletext)
-    
+
     #missing widths indicative of MI/MC run
     if (!is.null(fileInfo) && is.na(fileInfo[["fileVarWidths"]])) {
       allFiles[[listID]]$savedata <- l_getSavedata_readRawFile(curfile, outfiletext, format="free", fileName=fileInfo[["fileName"]], varNames=fileInfo[["fileVarNames"]], input=inp)
     } else {
       allFiles[[listID]]$savedata <- l_getSavedata_readRawFile(curfile, outfiletext, format="fixed", fileName=fileInfo[["fileName"]], varNames=fileInfo[["fileVarNames"]], varWidths=fileInfo[["fileVarWidths"]], input=inp)
     }
-    
+
     allFiles[[listID]]$bparameters <- l_getSavedata_Bparams(curfile, outfiletext, fileInfo, discardBurnin=FALSE)
     allFiles[[listID]]$residuals <- extractResiduals(outfiletext, curfile)
     allFiles[[listID]]$tech1 <- extractTech1(outfiletext, curfile) #parameter specification
@@ -86,25 +86,25 @@ readModels <- function(target=getwd(), recursive=FALSE, filefilter) {
     allFiles[[listID]]$tech4 <- extractTech4(outfiletext, curfile) #latent means
     allFiles[[listID]]$tech9 <- extractTech9(outfiletext, curfile) #tech 9 output (errors and warnings for Monte Carlo output)
     allFiles[[listID]]$fac_score_stats <- extractFacScoreStats(outfiletext, curfile) #factor scores mean, cov, corr assoc with PLOT3
-    
+
     #aux(e) means
     allFiles[[listID]]$lcCondMeans <- extractAuxE_1file(outfiletext, curfile)
-    
+
     #add class tag for use with compareModels
     class(allFiles[[listID]]) <- c("list", "mplus.model")
     attr(allFiles[[listID]], "filename") <- curfile
-    
+
     #cleanup summary columns containing only NAs
     for (col in names(allFiles[[listID]]$summaries)) {
       if (all(is.na(allFiles[[listID]]$summaries[[col]]))) allFiles[[listID]]$summaries[[col]] <- NULL
     }
-    
+
     #check for gh5 file, and load if possible
     gh5 <- list()
     gh5fname <- sub("^(.*)\\.out$", "\\1.gh5", curfile, ignore.case=TRUE, perl=TRUE)
     if (file.exists(gh5fname)) {
       if (suppressWarnings(require(rhdf5))) {
-        gh5 <- h5dump(file=gh5fname, recursive=TRUE, load=TRUE)        
+        gh5 <- h5dump(file=gh5fname, recursive=TRUE, load=TRUE)
       } else { warning(paste(c("Unable to read gh5 file because rhdf5 package not installed.\n",
                     "To install, in an R session, type:\n",
                     "  source(\"http://bioconductor.org/biocLite.R\")\n",
@@ -113,13 +113,13 @@ readModels <- function(target=getwd(), recursive=FALSE, filefilter) {
     }
     allFiles[[listID]]$gh5 <- gh5
   }
-  
+
   if (length(outfiles)==1) {
     allFiles <- allFiles[[1]] #no need for single top-level element when there is only one file
   } else {
     class(allFiles) <- c("list", "mplus.model.list")
   }
-  
+
   return(allFiles)
 }
 
@@ -756,12 +756,9 @@ extractInput_1file <- function(outfiletext, filename) {
 #' @keywords internal
 #' @examples
 #' # make me!!!
-extractSummaries_1file <- function(outfiletext, filename, input, extract=c("Title", "LL", "BIC", "AIC", "AICC",
-  "Parameters", "Observations", "BLRT", "RMSEA", "CFI", "TLI", "ChiSqModel", "aBIC",
-  "Estimator", "SRMR", "WRMR", "ChiSqBaseline"))
+extractSummaries_1file <- function(outfiletext, filename, input)
 {
   #preallocates list
-  #arglist = vector("list", length(extract))
   arglist <- list()
 
   #obtain mplus software version
@@ -772,7 +769,7 @@ extractSummaries_1file <- function(outfiletext, filename, input, extract=c("Titl
   ###Copy some elements of the input instructions into the summaries
 
   #copy title into arglist
-  if ("Title" %in% extract && !is.null(input$title)) {
+  if (!is.null(input$title)) {
     arglist$Title <- input$title
   } else {
     #warning("Unable to locate title field. Returning missing") #Warning doesn't seem very useful
@@ -799,12 +796,8 @@ extractSummaries_1file <- function(outfiletext, filename, input, extract=c("Titl
   #BEGIN ANALYSIS SUMMARY PROCESSING
   analysisSummarySection <- getSection("^\\s*SUMMARY OF ANALYSIS\\s*$", outfiletext)
 
-  if ("Estimator" %in% extract)
-    arglist$Estimator <- extractValue(pattern="^\\s*Estimator\\s*", analysisSummarySection, filename, type="str")
-
-  if ("Observations" %in% extract)
-    arglist$Observations <- extractValue(pattern="^\\s*Number of observations\\s*", analysisSummarySection, filename, type="int")
-
+  arglist$Estimator <- extractValue(pattern="^\\s*Estimator\\s*", analysisSummarySection, filename, type="str")  
+  arglist$Observations <- extractValue(pattern="^\\s*Number of observations\\s*", analysisSummarySection, filename, type="int")
 
   #END ANALYSIS SUMMARY PROCESSING
 
@@ -934,16 +927,13 @@ extractSummaries_1file <- function(outfiletext, filename, input, extract=c("Titl
 
 	#calculate adjusted AIC per Burnham & Anderson(2004), which is better than AIC for non-nested model selection
 	#handle AICC calculation, requires AIC, Parameters, and observations
-  if (all(c("AICC", "AIC", "Parameters", "Observations") %in% extract)) {
-		if (!is.null(arglist$Parameters) && !is.na(arglist$Parameters) &&
-				!is.null(arglist$AIC) && !is.na(arglist$AIC) &&
-				!is.null(arglist$Observations) && !is.na(arglist$Observations))
-			arglist$AICC <- arglist$AIC + (2*arglist$Parameters*(arglist$Parameters+1))/(arglist$Observations-arglist$Parameters-1)
-		else
-			arglist$AICC <- NA_real_
+  if (!is.null(arglist$Parameters) && !is.na(arglist$Parameters) &&
+      !is.null(arglist$AIC) && !is.na(arglist$AIC) &&
+      !is.null(arglist$Observations) && !is.na(arglist$Observations)) {
+    arglist$AICC <- arglist$AIC + (2*arglist$Parameters*(arglist$Parameters+1))/(arglist$Observations-arglist$Parameters-1)
+  } else {
+    arglist$AICC <- NA_real_
   }
-
-
 
   #Only warn about missing LL for ML-based estimators
 #too convoluted to maintain (and not so useful), generating errors I don't want to debug
@@ -1236,7 +1226,6 @@ showSummaryTable <- function(modelList, keepCols, dropCols, sortBy, font="Courie
 #' @examples
 #' # make me!!!
 HTMLSummaryTable <- function(modelList, filename=file.path(getwd(), "Model Comparison.html"), keepCols, dropCols, sortBy, display=FALSE) {
-#  require(xtable)
   #create HTML table and write to file.
 
   #ensure that the filename has a .html or .htm at the end
@@ -1297,88 +1286,12 @@ HTMLSummaryTable <- function(modelList, filename=file.path(getwd(), "Model Compa
 #' # make me!!!
 LatexSummaryTable <- function(modelList, keepCols, dropCols, sortBy, label=NULL, caption=NULL) {
   #return latex table to caller
-  #require(xtable)
 
   MplusData <- subsetModelList(modelList, keepCols, dropCols, sortBy)
 
   return(xtable(MplusData, label=label, caption=caption))
 }
 
-#removed input instructions from routine extraction
-#dropCols=c("InputInstructions", "Observations")
-
-
-#' Create tables
-#'
-#' This function generates an HTML table from a list of models generated by extractModelSummaries.
-#'
-#' @param modelList A list of model details returned by extractModelSummaries
-#' @param filename The name of HTML table file. Defaults to model comparison.html
-#' @param sortby The name of a field on which to sort. Defaults to "AICC". "BIC" and "AIC" are options.
-#' @param display Logical, whether to load the HTML table in the browser after creating it. Defaults to \code{TRUE}.
-#' @param latex Logical, whether to return a LaTeX table or not.
-#' @param dropCols A vector of the columns to be dropped
-#' @param label Defaults to \code{NULL}
-#' @return A file or \code{xtable} object
-#' @author Michael Hallquist
-#' @keywords internal
-#' @examples
-#' \dontrun{
-#'   createTable(myModels, "C:/Documents and Settings/Michael/My Documents/Mplus Stuff/", "my comparison.html", sortby="BIC")
-#' }
-createTable <- function(modelList, filename=file.path(getwd(), "Model Comparison.html"),
-  sortby="AICC", display=TRUE, latex=FALSE, dropCols=c("Observations"), label=NULL) {
-
-  #retain working directory to reset at end of run
-  #curdir <- getwd()
-  #setwd(basedir)
-
-  #require(xtable)
-
-  #convert modelList (which defaults to array of lists) to data frame
-  dframe <- as.data.frame(modelList)
-
-  #Process vector of columns to drop
-  for (column in dropCols) {
-    dframe[[column]] <- NULL
-  }
-
-  #sort the data frame according the sortby value
-  sortTab <- dframe[order(unlist(dframe[, sortby])), ]
-
-  #note that the sorting was previously not working because unlist automatically drops NULL values
-  #switched code to use NAs, which is more appropriate.
-
-  #ensure that the filename has a .html or .htm at the end
-  if (!length(grep(".*\\.htm[l]*", filename)) > 0) {
-    filename <- paste0(filename, ".html")
-  }
-
-  if (length(grep("[\\/]", filename)) == 0) {
-    #Filename does not contain a path. Therefore, add the working directory
-    filename <- file.path(getwd(), filename)
-  }
-
-  if (latex==FALSE) {
-    print(
-        x=xtable(sortTab),
-        type="html",
-        file=filename,
-        include.rownames = FALSE,
-        NA.string = "."
-    )
-
-    if (display) {
-      #load table in browser
-      shell.exec(paste0("file:///", filename))
-    }
-  }
-
-  #reset working directory
-  #setwd(curdir)
-
-  if (latex==TRUE) return(xtable(sortTab, label=label))
-}
 
 #' Extract residual matrices
 #'
