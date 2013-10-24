@@ -34,7 +34,10 @@
 #'   \item{tech1}{a list containing parameter specification and starting values from OUTPUT: TECH1}
 #'   \item{tech3}{a list containing parameter covariance and correlation matrices from OUTPUT: TECH3}
 #'   \item{tech4}{a list containing means, covariances, and correlations for latent variables from OUTPUT: TECH4}
-#'   \item{lcCondMeans}{conditional latent class means, obtained using auxiliary(e) syntax in latent class models}
+#'   \item{tech7}{a list containing sample statistics for each latent class from OUTPUT: TECH7}
+#'   \item{tech9}{a list containing warnings/errors from replication runs for MONTECARLO analyses from OUTPUT: TECH9}
+#'   \item{tech12}{a list containing observed versus estimated sample statistics for TYPE=MIXTURE analyses from OUTPUT: TECH12}
+#'   \item{lcCondMeans}{conditional latent class means and pairwise comparisons, obtained using auxiliary(e) syntax in latent class models}
 #'   \item{gh5}{a list containing data from the gh5 (graphics) file corresponding to this output. (Requires rhdf5 package)}
 #' @author Michael Hallquist
 #' @seealso \code{\link{extractModelSummaries}},
@@ -84,11 +87,13 @@ readModels <- function(target=getwd(), recursive=FALSE, filefilter) {
     allFiles[[listID]]$tech1 <- extractTech1(outfiletext, curfile) #parameter specification
     allFiles[[listID]]$tech3 <- extractTech3(outfiletext, fileInfo, curfile) #covariance/correlation matrix of parameter estimates
     allFiles[[listID]]$tech4 <- extractTech4(outfiletext, curfile) #latent means
+    allFiles[[listID]]$tech7 <- extractTech7(outfiletext, curfile) #sample stats for each class
     allFiles[[listID]]$tech9 <- extractTech9(outfiletext, curfile) #tech 9 output (errors and warnings for Monte Carlo output)
+    allFiles[[listID]]$tech12 <- extractTech12(outfiletext, curfile) #observed versus estimated sample stats for TYPE=MIXTURE
     allFiles[[listID]]$fac_score_stats <- extractFacScoreStats(outfiletext, curfile) #factor scores mean, cov, corr assoc with PLOT3
 
-    #aux(e) means
-    allFiles[[listID]]$lcCondMeans <- extractAuxE_1file(outfiletext, curfile)
+    #aux(e) means and pairwise comparisons
+    allFiles[[listID]]$lcCondMeans <- extractAux(outfiletext, curfile)
 
     #add class tag for use with compareModels
     class(allFiles[[listID]]) <- c("list", "mplus.model")
@@ -355,7 +360,10 @@ extractSummaries_1section <- function(modelFitSection, arglist, filename) {
 				"Information Criteria::Bayesian \\(BIC\\)",
 				"Information Criteria::Sample-Size Adjusted BIC \\(n\\* = \\(n \\+ 2\\) / 24\\)",
 				"RMSEA \\(Root Mean Square Error Of Approximation\\)",
-				"WRMR \\(Weighted Root Mean Square Residual\\)"
+				"WRMR \\(Weighted Root Mean Square Residual\\)",
+        "Information Criterion::Deviance \\(DIC\\)",
+        "Information Criterion::Estimated Number of Parameters \\(pD\\)",
+        "Information Criterion::Bayesian \\(BIC\\)"
 		)
 		modelFitSectionFields <- list(
 				data.frame(
@@ -417,7 +425,22 @@ extractSummaries_1section <- function(modelFitSection, arglist, filename) {
 						varName=c("WRMR_Mean", "WRMR_SD", "WRMR_NumComputations"),
 						regexPattern=c("Mean", "Std Dev", "Number of successful computations"),
 						varType=c("dec", "dec", "int"), stringsAsFactors=FALSE
-				)
+				),
+        data.frame( #Information Criterion:: DIC
+            varName=c("DIC_Mean", "DIC_SD", "DIC_NumComputations"),
+            regexPattern=c("Mean", "Std Dev", "Number of successful computations"), 
+            varType=c("dec", "dec", "int"), stringsAsFactors=FALSE
+        ),
+        data.frame( #Information Criterion:: Estimated number of parameters (pD)
+            varName=c("pD_Mean", "pD_SD", "pD_NumComputations"),
+            regexPattern=c("Mean", "Std Dev", "Number of successful computations"), 
+            varType=c("dec", "dec", "int"), stringsAsFactors=FALSE
+        ),
+        data.frame( #Information Criterion:: Bayesian (BIC) -- sometimes within Information Criterion, sometimes Information Criteria (above)...
+            varName=c("BIC_Mean", "BIC_SD", "BIC_NumComputations"),
+            regexPattern=c("Mean", "Std Dev", "Number of successful computations"), 
+            varType=c("dec", "dec", "int"), stringsAsFactors=FALSE
+        )
 		)
 
 		#handle two-level models, which return separate srmr for between vs. within
@@ -518,9 +541,9 @@ extractSummaries_1section <- function(modelFitSection, arglist, filename) {
             varType=c("dec[1]", "dec[2]", "dec"), stringsAsFactors=FALSE
         ),
         data.frame( #Information Criterion
-            varName=c("DIC", "pD"),
-            regexPattern=c("Deviance \\(DIC\\)", "Estimated Number of Parameters \\(pD\\)"),
-            varType=c("dec", "dec"), stringsAsFactors=FALSE
+            varName=c("DIC", "pD", "BIC"),
+            regexPattern=c("Deviance \\(DIC\\)", "Estimated Number of Parameters \\(pD\\)", "Bayesian \\(BIC\\)"), #sometimes BIC is listed here (e.g., MI Bayes output) 
+            varType=c("dec", "dec", "dec"), stringsAsFactors=FALSE
         )
 		)
 
@@ -624,6 +647,7 @@ divideIntoFields <- function(section.text, required) {
 #' @examples
 #' # make me!!!
 extractWarningsErrors_1file <- function(outfiletext, filename, input) {
+
   warnerr <- list(warnings=list(), errors=list())
   class(warnerr$errors) <- c("list", "mplus.errors")
   class(warnerr$warnings) <- c("list", "mplus.warnings")
@@ -786,6 +810,8 @@ extractSummaries_1file <- function(outfiletext, filename, input)
 	#extract the data type (important for detecting imputation datasets)
   if (!is.null(input$data$type)) {
     arglist$DataType <- input$data$type
+  }  else if (any(c("montecarlo", "model.population") %in% names(input))) {
+    arglist$DataType <- "MONTECARLO"
   } else {
     arglist$DataType <- "INDIVIDUAL" #Data type not specified, default to individual
   }
@@ -1184,12 +1210,14 @@ subsetModelList <- function(modelList, keepCols, dropCols, sortBy) {
 #' @return No value is returned by this function. It is solely used to display the summary table in a separate window.
 #' @author Michael Hallquist
 #' @seealso \code{\link{extractModelSummaries}} \code{\link{HTMLSummaryTable}} \code{\link{LatexSummaryTable}}
-#' @importFrom relimp showData
 #' @export
 #' @keywords interface
 #' @examples
 #' # make me!!!
 showSummaryTable <- function(modelList, keepCols, dropCols, sortBy, font="Courier 9") {
+  if (!suppressWarnings(require(relimp))) {
+    stop("The relimp package is absent. Interactive folder selection cannot function.")
+  }
 
   MplusData <- subsetModelList(modelList, keepCols, dropCols, sortBy)
   showData(MplusData, font=font, placement="+30+30", maxwidth=150, maxheight=50, rownumbers=FALSE, title="Mplus Summary Table")
@@ -1619,6 +1647,59 @@ extractTech4 <- function(outfiletext, filename) {
   return(tech4List)
 }
 
+#' Extract Technical 7 from Mplus
+#'
+#' The TECH7 option is used in conjunction with TYPE=MIXTURE to request sample statistics
+#' for each class using raw data weighted by the estimated posterior probabilities for each class.
+#'
+#' @param outfiletext the text of the output file
+#' @param filename The name of the file
+#' @return A list of class \dQuote{mplus.tech7}
+#' @keywords internal
+#' @seealso \code{\link{matrixExtract}}
+#' @examples
+#' # make me!!!
+extractTech7 <- function(outfiletext, filename) {
+  #TODO: have empty list use mplus.tech7 class
+  #not sure whether there are sometimes multiple groups within this section.
+  tech7Section <- getSection("^TECHNICAL 7 OUTPUT$", outfiletext)
+  if (is.null(tech7Section)) return(list()) #no tech7 output
+  
+  tech7List <- list()
+  
+  tech7Subsections <- getMultilineSection("SAMPLE STATISTICS WEIGHTED BY ESTIMATED CLASS PROBABILITIES FOR CLASS \\d+",
+      tech7Section, filename, allowMultiple=TRUE)
+  
+  matchlines <- attr(tech7Subsections, "matchlines")
+  
+  if (length(tech7Subsections) == 0) {
+    warning("No sections found within tech7 output.")
+    return(list())
+  }
+  else if (length(tech7Subsections) > 1) {
+    groupNames <- make.names(gsub("^\\s*SAMPLE STATISTICS WEIGHTED BY ESTIMATED CLASS PROBABILITIES FOR (CLASS \\d+)\\s*$", "\\1", tech7Section[matchlines], perl=TRUE))
+  }
+  
+  for (g in 1:length(tech7Subsections)) {
+    targetList <- list()
+    
+    targetList[["classSampMeans"]] <- matrixExtract(tech7Subsections[[g]], "Means", filename)
+    targetList[["classSampCovs"]] <- matrixExtract(tech7Subsections[[g]], "Covariances", filename)
+    
+    if (length(tech7Subsections) > 1) {
+      class(targetList) <- c("list", "mplus.tech7")
+      tech7List[[groupNames[g]]] <- targetList
+    }
+    else
+      tech7List <- targetList    
+  }
+  
+  class(tech7List) <- c("list", "mplus.tech7")
+  
+  return(tech7List)
+}
+
+
 #' Extract Technical 9 matrix from Mplus
 #'
 #' Function that extracts the Tech9 matrix
@@ -1669,10 +1750,74 @@ extractTech9 <- function(outfiletext, filename) {
 #' # make me!!!
 extractTech10 <- function(outfiletext, filename) {
   tech10Section <- getSection("^TECHNICAL 10 OUTPUT$", outfiletext)
-  if (is.null(tech10Section)) return(list()) #no tech4 output
+  if (is.null(tech10Section)) return(list()) #no tech10 output
 
   tech10List <- list()
 
+}
+
+#' Extract Technical 12 from Mplus
+#'
+#' The TECH12 option is used in conjunction with TYPE=MIXTURE to request residuals for observed 
+#' versus model estimated means, variances, covariances, univariate skewness, and univariate 
+#' kurtosis. The observed values come from the total sample. The estimated values are computed as
+#' a mixture across the latent classes.
+#'
+#' @param outfiletext the text of the output file
+#' @param filename The name of the file
+#' @return A list of class \dQuote{mplus.tech12}
+#' @keywords internal
+#' @seealso \code{\link{matrixExtract}}
+#' @examples
+#' # make me!!!
+extractTech12 <- function(outfiletext, filename) {
+  #TODO: have empty list use mplus.tech12 class
+  #not sure whether there are sometimes multiple groups within this section.
+  tech12Section <- getSection("^TECHNICAL 12 OUTPUT$", outfiletext)
+  if (is.null(tech12Section)) return(list()) #no tech12 output
+  
+  tech12List <- list()
+  
+  tech12Subsections <- getMultilineSection("ESTIMATED MIXED MODEL AND RESIDUALS \\(OBSERVED - EXPECTED\\)",
+      tech12Section, filename, allowMultiple=TRUE)
+  
+  matchlines <- attr(tech12Subsections, "matchlines")
+  
+  if (length(tech12Subsections) == 0) {
+    warning("No sections found within tech12 output.")
+    return(list())
+  }
+  else if (length(tech12Subsections) > 1) {
+    warning("extractTech12 does not yet know how to handle multiple sections (if such exist)")
+  }
+  
+  for (g in 1:length(tech12Subsections)) {
+    targetList <- list()
+    
+    targetList[["obsMeans"]] <- matrixExtract(tech12Subsections[[g]], "Observed Means", filename)
+    targetList[["mixedMeans"]] <- matrixExtract(tech12Subsections[[g]], "Estimated Mixed Means", filename)
+    targetList[["mixedMeansResid"]] <- matrixExtract(tech12Subsections[[g]], "Residuals for Mixed Means", filename)
+    targetList[["obsCovs"]] <- matrixExtract(tech12Subsections[[g]], "Observed Covariances", filename)
+    targetList[["mixedCovs"]] <- matrixExtract(tech12Subsections[[g]], "Estimated Mixed Covariances", filename)
+    targetList[["mixedCovsResid"]] <- matrixExtract(tech12Subsections[[g]], "Residuals for Mixed Covariances", filename)
+    targetList[["obsSkewness"]] <- matrixExtract(tech12Subsections[[g]], "Observed Skewness", filename)
+    targetList[["mixedSkewness"]] <- matrixExtract(tech12Subsections[[g]], "Estimated Mixed Skewness", filename)
+    targetList[["mixedSkewnessResid"]] <- matrixExtract(tech12Subsections[[g]], "Residuals for Mixed Skewness", filename)
+    targetList[["obsKurtosis"]] <- matrixExtract(tech12Subsections[[g]], "Observed Kurtosis", filename)
+    targetList[["mixedKurtosis"]] <- matrixExtract(tech12Subsections[[g]], "Estimated Mixed Kurtosis", filename)
+    targetList[["mixedKurtosisResid"]] <- matrixExtract(tech12Subsections[[g]], "Residuals for Mixed Kurtosis", filename)
+    
+    if (length(tech12Subsections) > 1) {
+      class(targetList) <- c("list", "mplus.tech12")
+      tech12List[[g]] <- targetList #no known case where there are many output sections
+    }
+    else
+      tech12List <- targetList
+  }
+  
+  class(tech12List) <- c("list", "mplus.tech12")
+  
+  return(tech12List)
 }
 
 #' Extract Factor Score Statistics
@@ -1757,51 +1902,129 @@ extractClassCounts <- function(outfiletext, filename) {
 
   mostLikelyCounts <- getSection("^CLASSIFICATION OF INDIVIDUALS BASED ON THEIR MOST LIKELY LATENT CLASS MEMBERSHIP$", outfiletext)
   countlist[["mostLikely"]] <- getClassCols(mostLikelyCounts)
-
+  
+  #most likely by posterior probability section
   mostLikelyProbs <- getSection("^Average Latent Class Probabilities for Most Likely Latent Class Membership \\(Row\\)$", outfiletext)
+  if (length(mostLikelyProbs) > 1L) { mostLikelyProbs <- mostLikelyProbs[-1L] } #remove line 1: "by Latent Class (Column)"
+    
+  #Example:
+  #Average Latent Class Probabilities for Most Likely Latent Class Membership (Row)
+  #by Latent Class (Column)
+  #
+  #  			1        2
+  #
+  #  1   0.986    0.014
+  #  2   0.030    0.970
+  #
+  #A bit of a wonky section. Some notes:
+  # 1) Rows represent those hard classified into that class.
+  # 2) Rows sum to 1.0 and represent the summed average posterior probabilities of all the class assignment possibilities.
+  # 3) Columns represent average posterior probabilitity of being in class 1 for those hard classified as 1 or 2.
+  # 4) High diagonal indicates that hard classification matches posterior probability patterns.
 
-  if (length(mostLikelyProbs) > 0) {
+  countlist[["avgProbs.mostLikely"]] <- unlabeledMatrixExtract(mostLikelyProbs, filename)
 
-    #Example:
-    #Average Latent Class Probabilities for Most Likely Latent Class Membership (Row)
-    #by Latent Class (Column)
-    #
-    #  			1        2
-    #
-    #  1   0.986    0.014
-    #  2   0.030    0.970
-
-    #A bit of a wonky section. Some notes:
-    # 1) Rows represent those hard classified into that class.
-    # 2) Rows sum to 1.0 and represent the summed average posterior probabilities of all the class assignment possibilities.
-    # 3) Columns represent average posterior probabilitity of being in class 1 for those hard classified as 1 or 2.
-    # 4) High diagonal indicates that hard classification matches posterior probability patterns.
-
-    #processing is also custom.
-    #first line is "by Latent Class (Column)"
-    #second line is blank
-    #third line contains the number of classes, which is useful for matrix setup.
-
-    classLabels <- as.numeric(strsplit(trimSpace(mostLikelyProbs[3]), "\\s+", perl=TRUE)[[1]])
-    mlpp_probs <- matrix(NA, nrow=length(classLabels), ncol=length(classLabels), dimnames=
-            list(hardClassified=paste("ml.c", classLabels, sep=""),
-                posteriorProb=paste("pp.c", classLabels, sep="")))
-
-    #fourth line is blank
-    #fifth line begins probabilities
-    firstProbLine <- 5
-    blankLine <- which(mostLikelyProbs[firstProbLine:length(mostLikelyProbs)] == "")[1] + (firstProbLine - 1) #need to add offset to get absolute position in overall section
-    probSection <- mostLikelyProbs[firstProbLine:(blankLine-1)]
-    mlpp_probs[,] <- do.call(rbind, lapply(strsplit(trimSpace(probSection), "\\s+", perl=TRUE), as.numeric))[,-1]
-
-    countlist[["avgProbs.mostLikely"]] <- mlpp_probs
-  }
+  #same, but for classification probabilities
+  classificationProbs <- getSection("^Classification Probabilities for the Most Likely Latent Class Membership \\(Row\\)$", outfiletext)
+  if (length(classificationProbs) > 1L) { classificationProbs <- classificationProbs[-1L] } #remove line 1: "by Latent Class (Column)"
+  
+  countlist[["classificationProbs.mostLikely"]] <- unlabeledMatrixExtract(classificationProbs, filename)
+  
+  #same, but for classification probability logits
+  classificationLogitProbs <- getSection("^Logits for the Classification Probabilities for the Most Likely Latent Class Membership \\(Row\\)$", outfiletext)
+  if (length(classificationLogitProbs) > 1L) { classificationLogitProbs <- classificationLogitProbs[-1L] } #remove line 1: "by Latent Class (Column)"
+  
+  countlist[["logitProbs.mostLikely"]] <- unlabeledMatrixExtract(classificationLogitProbs, filename)
+  
 
   return(countlist)
 }
 
+#' Reconstruct matrix from unlabeled multi-line text output
+#'
+#' worker function for extracting Mplus matrix output from an unlabeled section
+#' where matrices are spread across blocks to keep within width constraints
+#' example: class counts output from latent class models.
+#'
+#' @param outfiletext The text of the output file
+#' @param filename The name of the output file
+#' @return a matrix
+#' @keywords internal
+#' @examples
+#' # make me!!!
+unlabeledMatrixExtract <- function(outfiletext, filename) {
+  #This function extends the matrixExtract function by allowing for the matrix to be recreated
+  #to have no header labels and where section headers have a blank line on either side. Only example is in the class counts section, where when there
+  #are many classes, the most likely x posterior probability matrix is too wide and is output like this:
+  
+  #       1        2        3        4        5        6        7        8        9
+  #
+  #1   0.885    0.000    0.000    0.017    0.024    0.000    0.000    0.019    0.055
+  #2   0.000    0.775    0.006    0.000    0.000    0.064    0.097    0.013    0.000
+  #3   0.000    0.004    0.826    0.035    0.000    0.082    0.000    0.000    0.052
+  #4   0.014    0.002    0.070    0.804    0.018    0.035    0.000    0.008    0.046
+  #5   0.042    0.000    0.001    0.076    0.842    0.000    0.000    0.001    0.038
+  #6   0.000    0.096    0.063    0.014    0.001    0.732    0.021    0.026    0.008
+  #7   0.002    0.091    0.010    0.005    0.001    0.034    0.808    0.005    0.005
+  #8   0.118    0.014    0.006    0.004    0.000    0.030    0.015    0.514    0.139
+  #9   0.030    0.001    0.056    0.059    0.014    0.024    0.000    0.109    0.691
+  #10  0.030    0.062    0.007    0.007    0.002    0.052    0.130    0.108    0.063
+  #
+  #      10
+  #
+  #1   0.000
+  #2   0.046
+  #3   0.001
+  #4   0.004
+  #5   0.000
+  #6   0.038
+  #7   0.039
+  #8   0.159
+  #9   0.016
+  #10  0.539
+  
+  #Only one matrix can be extracted from outfiletext since sections are unlabeled
+  
+  if (length(outfiletext) > 0L && length(outfiletext) > 1L) {
+    
+    #pattern match: 1) blank line; 2) integers line; 3) blank line
+    #find these cases, then add "DUMMY" to each of the header blank lines
+    
+    blankLines <- which(outfiletext == "")
+    
+    if (length(blankLines) > 0L) {
+      headerLines <- c()
+      
+      for (b in 1:length(blankLines)) {
+        if (b < length(blankLines) && blankLines[b+1] == blankLines[b] + 2) {
+          # a blank line followed by a non-blank line followed by a blank line...
+          # check that it represents an integer sequence (this may need to be removed in more general cases)
+          intLine <- strsplit(trimSpace(outfiletext[blankLines[b]+1]), "\\s+", perl=TRUE)[[1L]]
+          firstCol <- as.numeric(intLine[1L]) #number of the class in the first column
+          if (all(intLine == firstCol:(firstCol + length(intLine) - 1) )) {
+            headerLines <- c(headerLines, blankLines[b])
+          }
+        }
+      }
+      
+      #add the header to blank lines preceding class labels row
+      outfiletext[headerLines] <- "DUMMY"
+      
+      #now use matrix extract to reconstruct matrix
+      unlabeledMat <- matrixExtract(outfiletext, "DUMMY", filename)
+      
+      return(unlabeledMat)
+      
+    } else {
+      return(NULL)
+    }
+  } else {
+    return(NULL)
+  }
+}
 
-#' Extract Factor Score Statistics
+
+#' Reconstruct matrix from multi-line text output
 #'
 #' main worker function for extracting Mplus matrix output
 #' where matrices are spread across blocks to keep within width constraints

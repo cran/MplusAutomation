@@ -29,8 +29,9 @@
 runModels_Interactive <- function(directory=getwd(), recursive="0",
     showOutput="1", replaceOutfile="1", checkDate="0", logFile="1")
 {
-  tcltk <- require(tcltk)
-  if (!tcltk) stop("The tcltk package is absent. Interactive folder selection cannot function.")
+  if (!suppressWarnings(require(tcltk))) {
+    stop("The tcltk package is absent. Interactive folder selection cannot function.")
+  }
 
   #button handler functions
   onOK <- function() {
@@ -74,13 +75,13 @@ runModels_Interactive <- function(directory=getwd(), recursive="0",
     #choose.dir is a prettier way to select directory
     #tclvalue(directoryVariable) <- tclvalue(tkchooseDirectory())
     if (.Platform$OS.type == "unix") runDir <- tclvalue(tkchooseDirectory())
-		else runDir <- tclvalue(tclVar(choose.dir(tclvalue(directoryVariable), "Choose the Mplus Run Directory")))
+    else runDir <- tclvalue(tclVar(choose.dir(tclvalue(directoryVariable), "Choose the Mplus Run Directory")))
 
-		if (!runDir == "NA") {
-			tclvalue(directoryVariable) <- runDir
-			#if log file is still at its default (getwd() + "Mplus Run Models.log"), switch to run directory
-			if (userSetLogFile == FALSE) tclvalue(logFile_TCL) <- file.path(runDir, "Mplus Run Models.log")
-		}
+    if (!runDir == "NA") {
+      tclvalue(directoryVariable) <- runDir
+      #if log file is still at its default (getwd() + "Mplus Run Models.log"), switch to run directory
+      if (userSetLogFile == FALSE) tclvalue(logFile_TCL) <- file.path(runDir, "Mplus Run Models.log")
+    }
 
   }
   onLogBrowse <- function(){
@@ -88,9 +89,9 @@ runModels_Interactive <- function(directory=getwd(), recursive="0",
     #logDir <- tclvalue(tkgetSaveFile(defaultextension="log", initialdir=chartr("/", "\\", splitPath$directory), initialfile=splitPath$filename))
     logDir <- tclvalue(tkgetSaveFile(defaultextension="log", initialdir=splitPath$directory, initialfile=splitPath$filename))
     if (!logDir == "") {
-			tclvalue(logFile_TCL) <- logDir
-			userSetLogFile <<- TRUE #needs to be assigned in parent env
-		}
+      tclvalue(logFile_TCL) <- logDir
+      userSetLogFile <<- TRUE #needs to be assigned in parent env
+    }
   }
   onReplace <- function() {
     curVal <- as.character(tclvalue(replaceOutfileChecked))
@@ -167,7 +168,7 @@ runModels_Interactive <- function(directory=getwd(), recursive="0",
 
   #setup the filename field for the log file
   logFile_TCL <- tclVar(file.path(directory, "Mplus Run Models.log"))
-	userSetLogFile <- FALSE
+  userSetLogFile <- FALSE
   logFrame <- ttkframe(optionsFrame) #borderwidth="5m")
   if (as.logical(as.numeric(logFile)) == TRUE) initialState <- "!disabled"
   else initialState <- "disabled"
@@ -209,6 +210,9 @@ runModels_Interactive <- function(directory=getwd(), recursive="0",
 #'   Defaults to the current working directory. Example: \dQuote{C:/Users/Michael/Mplus Runs}
 #' @param recursive optional. If \code{TRUE}, run all models nested in subdirectories
 #'   within \code{directory}. Defaults to \code{FALSE}.
+#' @param filefilter a Perl regular expression (PCRE-compatible) specifying particular input
+#'   files to be run within \code{directory}. See \code{regex} or \url{http://www.pcre.org/pcre.txt}
+#'   for details about regular expression syntax.
 #' @param showOutput optional. If \code{TRUE}, show estimation output (TECH8)
 #'   in the R console. Note that if run within Rgui, output will display within R,
 #'   but if run via Rterm, a separate window will appear during estimation.
@@ -236,17 +240,18 @@ runModels_Interactive <- function(directory=getwd(), recursive="0",
 #'     replaceOutfile="modifiedDate", logFile="MH_RunLog.txt",
 #'     Mplus_command="C:\\Users\\Michael\\Mplus Install\\Mplus51.exe")
 #' }
-runModels <- function(directory=getwd(), recursive=FALSE, showOutput=FALSE, replaceOutfile="always",
-    logFile="Mplus Run Models.log", Mplus_command="Mplus") {
+runModels <- function(directory=getwd(), recursive=FALSE, filefilter = NULL, showOutput=FALSE,
+	replaceOutfile="always", logFile="Mplus Run Models.log", Mplus_command="Mplus") {
 
   #removed from parameter list because no need for user to customize at this point
   deleteOnKill <- TRUE #at this point, don't expose this setting to the user
 
-	#retain working directory and reset at end of run
-	#need to set here to ensure that logTarget initialization below is within target directory, not getwd()
-	curdir <- getwd()
-	setwd(directory)
-	normalComplete <- FALSE
+  #retain working directory and reset at end of run
+  #need to set here to ensure that logTarget initialization below is within target directory, not getwd()
+  curdir <- getwd()
+  if (!file.exists(directory)) { stop("runModels cannot change to directory: ", directory)}
+  setwd(directory)
+  normalComplete <- FALSE
 
   #if log file requested, then open file connection for writing
   if (!is.null(logFile)) {
@@ -283,43 +288,43 @@ runModels <- function(directory=getwd(), recursive=FALSE, showOutput=FALSE, repl
 
     #create a data frame consisting of the process names and pids
     #uses str split on the output of wmic to extract name and pid columns
-		#depends on windows tools
-		if (.Platform$OS.type == "windows") {
-			processList <- ldply(strsplit(shell("wmic process get caption, processid", intern=TRUE), split="\\s+", perl=TRUE),
-	        function(element) {
-	          return(data.frame(procname=element[1], pid=element[2], stringsAsFactors = FALSE))
-	    })
+    #depends on windows tools
+    if (.Platform$OS.type == "windows") {
+      processList <- ldply(strsplit(shell("wmic process get caption, processid", intern=TRUE), split="\\s+", perl=TRUE),
+          function(element) {
+            return(data.frame(procname=element[1], pid=element[2], stringsAsFactors = FALSE))
+          })
 
-	    if(length(grep("mplus.exe", processList$procname, ignore.case=TRUE)) > 0) {
-	      if(isLogOpen()) {
-	        writeLines("Killing wayward Mplus processes", logTarget)
-	        flush(logTarget)
-	      }
-	      shell("taskkill /f /im mplus.exe")
+      if(length(grep("mplus.exe", processList$procname, ignore.case=TRUE)) > 0) {
+        if(isLogOpen()) {
+          writeLines("Killing wayward Mplus processes", logTarget)
+          flush(logTarget)
+        }
+        shell("taskkill /f /im mplus.exe")
 
-	      #if the process is currently running and we kill it, then the output and gph files will be incomplete.
-	      #in general, it would be good to delete these.
-	      if(deleteOnKill == TRUE) {
-	        noExtension <- substr(absFilename, length(absFilename) - 4, length(absFilename))
-	        outDelete <- paste(noExtension, ".out", sep="")
-	        gphDelete <- paste(noExtension, ".gph", sep="")
-	        if (file.exists(outDelete)) {
-	          unlink(outDelete)
-	          if(isLogOpen()) {
-	            writeLines(paste("Deleting unfinished output file:", outDelete), logTarget)
-	            flush(logTarget)
-	          }
-	        }
-	        if (file.exists(gphDelete)) {
-	          unlink(gphDelete)
-	          if(isLogOpen()) {
-	            writeLines(paste("Deleting unfinished graph file:", gphDelete), logTarget)
-	            flush(logTarget)
-	          }
-	        }
-	      }
-			}
-		}
+        #if the process is currently running and we kill it, then the output and gph files will be incomplete.
+        #in general, it would be good to delete these.
+        if(deleteOnKill == TRUE) {
+          noExtension <- substr(absFilename, length(absFilename) - 4, length(absFilename))
+          outDelete <- paste(noExtension, ".out", sep="")
+          gphDelete <- paste(noExtension, ".gph", sep="")
+          if (file.exists(outDelete)) {
+            unlink(outDelete)
+            if(isLogOpen()) {
+              writeLines(paste("Deleting unfinished output file:", outDelete), logTarget)
+              flush(logTarget)
+            }
+          }
+          if (file.exists(gphDelete)) {
+            unlink(gphDelete)
+            if(isLogOpen()) {
+              writeLines(paste("Deleting unfinished graph file:", gphDelete), logTarget)
+              flush(logTarget)
+            }
+          }
+        }
+      }
+    }
 
     #close logfile
     if (isLogOpen()) { close(logTarget) }
@@ -330,8 +335,8 @@ runModels <- function(directory=getwd(), recursive=FALSE, showOutput=FALSE, repl
 
   on.exit(exitRun())
 
-	#list files in the current directory
-  filelist <- list.files(recursive=recursive)
+  #list files in the current directory
+  filelist <- list.files(recursive=recursive, pattern=filefilter)
 
   #select only .inp files using grep
   inpfiles <- filelist[grep(".*\\.inp$", filelist, ignore.case=TRUE)]
@@ -394,54 +399,59 @@ runModels <- function(directory=getwd(), recursive=FALSE, showOutput=FALSE, repl
       else Mplus_command <- "mplus" #linux is case sensitive
     }
 
-		#navigate to working directory in DOS using cd command so that Mplus finds the appropriate files (support rel paths)
+    #navigate to working directory in DOS using cd command so that Mplus finds the appropriate files (support rel paths)
     #switched over to use relative filename because of problems in Mplus via Wine misinterpreting absolute paths due to forward slashes.
     #25Jul2012: Quote Mplus_command in case it's in a path with spaces.
-		command <- paste("cd \"", dirtocd, "\" && \"", Mplus_command, "\" \"", inputSplit$filename, "\"", sep="")
+    command <- paste("cd \"", dirtocd, "\" && \"", Mplus_command, "\" \"", inputSplit$filename, "\"", sep="")
 
     #allow for divergence if the package is being run in Linux (Mplus via wine)
-		if (.Platform$OS.type == "windows") {
-			#Given that Mplus is a Windows program, should generally automatically remap / as \ for Windows
-			#remap forward slashes to backslashes
-			command <- chartr("/", "\\", command)
+    if (.Platform$OS.type == "windows") {
+      #Given that Mplus is a Windows program, should generally automatically remap / as \ for Windows
+      #remap forward slashes to backslashes
+      command <- chartr("/", "\\", command)
 
-			#code swiped from shell because shell didn't support suppressing output
-			shellcommand <- Sys.getenv("COMSPEC")
-			flag <- "/c"
+      #code swiped from shell because shell didn't support suppressing output
+      shellcommand <- Sys.getenv("COMSPEC")
+      flag <- "/c"
 
-			#assemble full command from the shell call, flag, and command
-			command <- paste(shellcommand, flag, command)
-		}
-		else if (.Platform$OS.type == "unix") {
-			#allow for unix-specific customization here
-		}
+      #assemble full command from the shell call, flag, and command
+      command <- paste(shellcommand, flag, command)
+    }
+    else if (.Platform$OS.type == "unix") {
+      #allow for unix-specific customization here
+    }
 
     if (isLogOpen()) {
       writeLines(paste("Currently running model:", inputSplit$filename), logTarget)
       flush(logTarget)
     }
 
-		#run the model
-		cat("\nRunning model:", inputSplit$filename, "\n")
-		cat("System command:", command, "\n")
+    #run the model
+    cat("\nRunning model:", inputSplit$filename, "\n")
+    cat("System command:", command, "\n")
 
-		#unix system command does not have show.output.on.console or invisible parameters
-    if (.Platform$OS.type == "windows")	system(command, show.output.on.console = showOutput, invisible=(!showOutput), wait=TRUE)
-	
-	else{
-		if(showOutput) stdout.value = ""
-		else stdout.value = NULL
-		
-	 	system2(Mplus_command, args=inputSplit$filename, stdout=stdout.value, wait=TRUE)
-	 }
-
+    #unix system command does not have show.output.on.console or invisible parameters
+    if (.Platform$OS.type == "windows")	{
+      system(command, show.output.on.console = showOutput, invisible=(!showOutput), wait=TRUE)
+    } else {
+      if(showOutput) stdout.value = ""
+      else stdout.value = NULL
+      #need to switch to each directory, then run Mplus within using just the filename
+      oldwd <- getwd()
+      setwd(dirtocd)
+      exitCode <- system2(Mplus_command, args=c(shQuote(inputSplit$filename)), stdout=stdout.value, wait=TRUE)
+      if (exitCode > 0L) {
+        warning("Mplus returned error code: ", exitCode, ", for model: ", inputSplit$filename, "\n")
+      }
+      setwd(oldwd)
+    }
   }
 
-	if (isLogOpen()) {
+  if (isLogOpen()) {
     writeLines(c("", paste("------End Mplus Model Run: ", format(Sys.time(), "%d%b%Y %H:%M:%S"), "------", sep="")), logTarget)
     flush(logTarget)
   }
-	normalComplete <- TRUE #if we made it here, then all completed normally
+  normalComplete <- TRUE #if we made it here, then all completed normally
 
-	#exitRun will fire here if all successful.
+  #exitRun will fire here if all successful.
 }

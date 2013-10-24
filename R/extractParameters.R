@@ -15,7 +15,7 @@ extractParameters_1chunk <- function(filename, thisChunk, columnNames) {
   if (missing(columnNames) || is.na(columnNames) || is.null(columnNames)) stop("Missing column names for chunk.\n  ", filename)
 
   #okay to match beginning and end of line because strip.white used in scan
-  matches <- gregexpr("^\\s*((Means|Thresholds|Intercepts|Variances|Item Difficulties|Residual Variances|New/Additional Parameters|Scales)|([\\w_\\d+\\.#]+\\s+(BY|WITH|ON|\\|)))\\s*$", thisChunk, perl=TRUE)
+  matches <- gregexpr("^\\s*((Means|Thresholds|Intercepts|Variances|Item Difficulties|Residual Variances|New/Additional Parameters|Scales|Dispersion)|([\\w_\\d+\\.#]+\\s+(BY|WITH|ON|\\|)))\\s*$", thisChunk, perl=TRUE)
 
   #more readable (than above) using ldply from plyr
   convertMatches <- ldply(matches, function(row) data.frame(start=row, end=row+attr(row, "match.length")-1))
@@ -37,7 +37,7 @@ extractParameters_1chunk <- function(filename, thisChunk, columnNames) {
         match <- substr(thisChunk[row$startline], row$start, row$end)
 
         #check for keyword
-        if (match %in% c("Means", "Thresholds", "Intercepts", "Variances", "Residual Variances", "New/Additional Parameters", "Scales", "Item Difficulties")) {
+        if (match %in% c("Means", "Thresholds", "Intercepts", "Variances", "Residual Variances", "New/Additional Parameters", "Scales", "Item Difficulties", "Dispersion")) {
           return(data.frame(startline=row$startline, keyword=make.names(match), varname=NA_character_, operator=NA_character_))
         }
         else if (length(variable <- strapply(match, "^\\s*([\\w_\\d+\\.#]+)\\s+(BY|WITH|ON|\\|)\\s*$", c, perl=TRUE)[[1]]) > 0) {
@@ -151,8 +151,9 @@ extractParameters_1section <- function(filename, modelSection, sectionName) {
   #detectColumn names sub-divides (perhaps unnecessarily) the matches based on the putative section type of the output
   #current distinctions include modification indices, confidence intervals, and model results.
   if (sectionName %in% c("ci.unstandardized", "ci.stdyx.standardized", "ci.stdy.standardized", "ci.std.standardized")) { sectionType <- "confidence_intervals"
-  } else if (sectionName == "irt.parameterization") {
+  } else if (sectionName == "irt.parameterization" || sectionName == "probability.scale") {
     #the IRT section follows from the MODEL RESULTS section, and column headers are not reprinted.
+    #Same applies for RESULTS IN PROBABILITY SCALE section
     #Thus, for now (first pass), assume a 5-column header -- kludge
     columnNames <- c("param", "est", "se", "est_se", "pval")
   } else { sectionType <- "model_results" }
@@ -234,7 +235,6 @@ extractParameters_1section <- function(filename, modelSection, sectionName) {
         #this handles issues where a blank section terminates the results section, such as multilevel w/ no between
         thisChunk <- modelSection[(match+1):length(modelSection)]
         chunkToParse <- TRUE
-
       }
 
       if (chunkToParse == TRUE) {
@@ -318,7 +318,6 @@ extractParameters_1file <- function(outfiletext, filename, resultType) {
     return(NULL) #skip file
   }
 
-
   # copy elements of append into target. note that data.frames inherit list,
   # so could be wonky if append is a data.frame (shouldn't happen here)
   appendListElements <- function(target, append) {
@@ -383,7 +382,13 @@ extractParameters_1file <- function(outfiletext, filename, resultType) {
     attr(irtParsed[["irt.parameterization"]], probitLogit) <- def #add probit/logit definition as attribute
     allSections <- appendListElements(allSections, irtParsed)
   }
-
+  
+#  probSection <- getSection("^RESULTS IN PROBABILITY SCALE$", outfiletext)
+#  if (!is.null(probSection)) {
+#    probParsed <- extractParameters_1section(filename, probSection, "probability.scale")
+#    allSections <- appendListElements(allSections, probParsed)
+#  }
+  
   #confidence intervals for usual output, credibility intervals for bayesian output
   ciSection <- getSection("^(CONFIDENCE INTERVALS OF MODEL RESULTS|CREDIBILITY INTERVALS OF MODEL RESULTS)$", outfiletext)
   if (!is.null(ciSection)) {
@@ -405,7 +410,7 @@ extractParameters_1file <- function(outfiletext, filename, resultType) {
 
   # cleaner equivalent of above
   listOrder <- c("unstandardized", "ci.unstandardized",
-      "irt.parameterization",
+      "irt.parameterization", "probability.scale",
       "stdyx.standardized", "ci.stdyx.standardized",
       "stdy.standardized", "ci.stdy.standardized",
       "std.standardized", "ci.std.standardized")
