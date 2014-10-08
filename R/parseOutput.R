@@ -96,7 +96,7 @@ readModels <- function(target=getwd(), recursive=FALSE, filefilter) {
     allFiles[[listID]]$lcCondMeans <- extractAux(outfiletext, curfile)
 
     #add class tag for use with compareModels
-    class(allFiles[[listID]]) <- c("list", "mplus.model")
+    class(allFiles[[listID]]) <- c("mplus.model", "list")
     attr(allFiles[[listID]], "filename") <- curfile
 
     #cleanup summary columns containing only NAs
@@ -122,7 +122,7 @@ readModels <- function(target=getwd(), recursive=FALSE, filefilter) {
   if (length(outfiles)==1) {
     allFiles <- allFiles[[1]] #no need for single top-level element when there is only one file
   } else {
-    class(allFiles) <- c("list", "mplus.model.list")
+    class(allFiles) <- c("mplus.model.list", "list")
   }
 
   return(allFiles)
@@ -155,7 +155,7 @@ extractValue <- function(pattern, textToScan, filename, type="int") {
   matchlines <- textToScan[(matchpos+offset)]
 
   if (length(matchlines) > 1) {
-		stop("More than one match found for parameter: ", pattern, "\n  ", filename)
+    stop("More than one match found for parameter: ", pattern, "\n  ", filename)
     #return(matchlines) #not sure what I was thinking here... seems better to stop than warn and return lines
   }
   else if (length(matchlines) == 0) {
@@ -221,18 +221,18 @@ extractValue <- function(pattern, textToScan, filename, type="int") {
 #' # make me!!!
 getMultilineSection <- function(header, outfiletext, filename, allowMultiple=FALSE, allowSpace=TRUE) {
 
-	#allow for multiple depths (subsections) separated by ::
+  #allow for multiple depths (subsections) separated by ::
   #will just extract from deepest depth
-	header <- strsplit(header, "::", fixed=TRUE)[[1]]
+  header <- strsplit(header, "::", fixed=TRUE)[[1]]
 
   sectionList <- list()
-	targetText <- outfiletext
-	for (level in 1:length(header)) {
-		if (allowSpace==TRUE) headerRow <- grep(paste("^\\s*", header[level], "\\s*$", sep=""), targetText, perl=TRUE)
+  targetText <- outfiletext
+  for (level in 1:length(header)) {
+    if (allowSpace==TRUE) headerRow <- grep(paste("^\\s*", header[level], "\\s*$", sep=""), targetText, perl=TRUE)
     else headerRow <- grep(paste("^", header[level], "$", sep=""), targetText, perl=TRUE) #useful for equality of means where we just want anything with 0 spaces
 
-		if (length(headerRow) == 1L || (length(headerRow) > 0L && allowMultiple==TRUE)) {
-			for (r in 1:length(headerRow)) {
+    if (length(headerRow) == 1L || (length(headerRow) > 0L && allowMultiple==TRUE)) {
+      for (r in 1:length(headerRow)) {
         #locate the position of the first non-space character
         numSpacesHeader <- regexpr("\\S+.*$", targetText[headerRow[r]], perl=TRUE) - 1
 
@@ -272,15 +272,15 @@ getMultilineSection <- function(header, outfiletext, filename, allowMultiple=FAL
 
       }
 
-		}
-		else {
-			targetText <- NA_character_
-			if (length(headerRow) > 1L) warning(paste("Multiple matches for header: ", header, "\n  ", filename, sep=""))
-			break
-			#else if (length(headerRow) < 1) warning(paste("Could not locate section based on header: ", header, "\n  ", filename, sep=""))
-		}
+    }
+    else {
+      targetText <- NA_character_
+      if (length(headerRow) > 1L) warning(paste("Multiple matches for header: ", header, "\n  ", filename, sep=""))
+      break
+      #else if (length(headerRow) < 1) warning(paste("Could not locate section based on header: ", header, "\n  ", filename, sep=""))
+    }
 
-	}
+  }
 
   if (length(sectionList) > 0L && allowMultiple) {
     attr(sectionList, "matchlines") <- headerRow
@@ -308,15 +308,17 @@ extractSummaries_1plan <- function(arglist, sectionHeaders, sectionFields, textT
   #multiple sections
   for (header in 1:length(sectionHeaders)) {
     #a blank section header indicates to match anywhere in the textToParse
-    if (sectionHeaders[header] == "") sectionText <- textToParse
-
-		#could be pretty inefficient if the same section header is repeated several times.
-		#could build a list with divided output and check whether a section is present in the list before extracting
-		else sectionText <- getMultilineSection(sectionHeaders[header], textToParse, filename)
+    if (sectionHeaders[header] == "") {
+      sectionText <- textToParse
+    } else {
+      #could be pretty inefficient if the same section header is repeated several times.
+      #could build a list with divided output and check whether a section is present in the list before extracting
+      sectionText <- getMultilineSection(sectionHeaders[header], textToParse, filename)
+    }
 
     #process all fields for this section
     sectionFieldDF <- sectionFields[[header]]
-    #browser()
+
     for (i in 1:nrow(sectionFieldDF)) {
       thisField <- sectionFieldDF[i,]
 
@@ -347,194 +349,195 @@ extractSummaries_1plan <- function(arglist, sectionHeaders, sectionFields, textT
 extractSummaries_1section <- function(modelFitSection, arglist, filename) {
 
   #MI and Montecarlo data types have fundamentally different output (means and sds per fit stat)
-	if (grepl("imputation", arglist$DataType, ignore.case=TRUE) || grepl("montecarlo", arglist$DataType, ignore.case=TRUE)) {
-		modelFitSectionHeaders <- c(
-				"", #section-inspecific parameters
-				"Chi-Square Test of Model Fit",
+  if (grepl("imputation", arglist$DataType, ignore.case=TRUE) || grepl("montecarlo", arglist$DataType, ignore.case=TRUE)) {
+    modelFitSectionHeaders <- c(
+        "", #section-inspecific parameters
+        "Chi-Square Test of Model Fit",
 #        "Chi-Square Test of Model Fit for the Baseline Model",
-				"Loglikelihood::H0 Value",
-				"Loglikelihood::H1 Value",
-				"CFI/TLI::CFI",
-				"CFI/TLI::TLI",
-				"Information Criteria::Akaike \\(AIC\\)",
-				"Information Criteria::Bayesian \\(BIC\\)",
-				"Information Criteria::Sample-Size Adjusted BIC \\(n\\* = \\(n \\+ 2\\) / 24\\)",
-				"RMSEA \\(Root Mean Square Error Of Approximation\\)",
-				"WRMR \\(Weighted Root Mean Square Residual\\)",
+        "Loglikelihood::H0 Value",
+        "Loglikelihood::H1 Value",
+        "CFI/TLI::CFI",
+        "CFI/TLI::TLI",
+        "Information Criteria::Akaike \\(AIC\\)",
+        "Information Criteria::Bayesian \\(BIC\\)",
+        "Information Criteria::Sample-Size Adjusted BIC \\(n\\* = \\(n \\+ 2\\) / 24\\)",
+        "RMSEA \\(Root Mean Square Error Of Approximation\\)",
+        "WRMR \\(Weighted Root Mean Square Residual\\)",
         "Information Criterion::Deviance \\(DIC\\)",
         "Information Criterion::Estimated Number of Parameters \\(pD\\)",
         "Information Criterion::Bayesian \\(BIC\\)"
-		)
-		modelFitSectionFields <- list(
-				data.frame(
-						varName=c("Parameters"), #defined outside of information criteria section for non-ML estimators
-						regexPattern=c("Number of Free Parameters"),
-						varType=c("int"), stringsAsFactors=FALSE
-				),
-				data.frame(
-						varName=c("ChiSqM_DF", "ChiSqM_Mean", "ChiSqM_SD", "ChiSqM_NumComputations"),
-						regexPattern=c("Degrees of Freedom", "Mean", "Std Dev", "Number of successful computations"),
-						varType=c("int", "dec", "dec", "int"), stringsAsFactors=FALSE
-				),
+    )
+    modelFitSectionFields <- list(
+        data.frame(
+            varName=c("Parameters"), #defined outside of information criteria section for non-ML estimators
+            regexPattern=c("Number of Free Parameters"),
+            varType=c("int"), stringsAsFactors=FALSE
+        ),
+        data.frame(
+            varName=c("ChiSqM_DF", "ChiSqM_Mean", "ChiSqM_SD", "ChiSqM_NumComputations"),
+            regexPattern=c("Degrees of Freedom", "Mean", "Std Dev", "Number of successful computations"),
+            varType=c("int", "dec", "dec", "int"), stringsAsFactors=FALSE
+        ),
 #        data.frame(
 #            varName=c("ChiSqBaseline_Value", "ChiSqBaseline_DF", "ChiSqBaseline_PValue"),
 #            regexPattern=c("Value", "Degrees of Freedom", "^P-Value"),
 #            varType=c("dec", "int", "dec"), stringsAsFactors=FALSE
 #        ),
-				data.frame(
-						varName=c("LL_Mean", "LL_SD", "LL_NumComputations"),
-						regexPattern=c("Mean", "Std Dev", "Number of successful computations"),
-						varType=c("dec", "dec", "int"), stringsAsFactors=FALSE
-				),
-				data.frame(
-						varName=c("UnrestrictedLL_Mean", "UnrestrictedLL_SD", "UnrestrictedLL_NumComputations"),
-						regexPattern=c("Mean", "Std Dev", "Number of successful computations"),
-						varType=c("dec", "dec", "int"), stringsAsFactors=FALSE
-				),
-				data.frame(
-						varName=c("CFI_Mean", "CFI_SD", "CFI_NumComputations"),
-						regexPattern=c("Mean", "Std Dev", "Number of successful computations"),
-						varType=c("dec", "dec", "int"), stringsAsFactors=FALSE
-				),
-				data.frame(
-						varName=c("TLI_Mean", "TLI_SD", "TLI_NumComputations"),
-						regexPattern=c("Mean", "Std Dev", "Number of successful computations"),
-						varType=c("dec", "dec", "int"), stringsAsFactors=FALSE
-				),
-				data.frame(
-						varName=c("AIC_Mean", "AIC_SD", "AIC_NumComputations"),
-						regexPattern=c("Mean", "Std Dev", "Number of successful computations"),
-						varType=c("dec", "dec", "int"), stringsAsFactors=FALSE
-				),
-				data.frame(
-						varName=c("BIC_Mean", "BIC_SD", "BIC_NumComputations"),
-						regexPattern=c("Mean", "Std Dev", "Number of successful computations"),
-						varType=c("dec", "dec", "int"), stringsAsFactors=FALSE
-				),
-				data.frame(
-						varName=c("aBIC_Mean", "aBIC_SD", "aBIC_NumComputations"),
-						regexPattern=c("Mean", "Std Dev", "Number of successful computations"),
-						varType=c("dec", "dec", "int"), stringsAsFactors=FALSE
-				),
-				data.frame(
-						varName=c("RMSEA_Mean", "RMSEA_SD", "RMSEA_NumComputations"),
-						regexPattern=c("Mean", "Std Dev", "Number of successful computations"),
-						varType=c("dec", "dec", "int"), stringsAsFactors=FALSE
-				),
-				data.frame(
-						varName=c("WRMR_Mean", "WRMR_SD", "WRMR_NumComputations"),
-						regexPattern=c("Mean", "Std Dev", "Number of successful computations"),
-						varType=c("dec", "dec", "int"), stringsAsFactors=FALSE
-				),
+        data.frame(
+            varName=c("LL_Mean", "LL_SD", "LL_NumComputations"),
+            regexPattern=c("Mean", "Std Dev", "Number of successful computations"),
+            varType=c("dec", "dec", "int"), stringsAsFactors=FALSE
+        ),
+        data.frame(
+            varName=c("UnrestrictedLL_Mean", "UnrestrictedLL_SD", "UnrestrictedLL_NumComputations"),
+            regexPattern=c("Mean", "Std Dev", "Number of successful computations"),
+            varType=c("dec", "dec", "int"), stringsAsFactors=FALSE
+        ),
+        data.frame(
+            varName=c("CFI_Mean", "CFI_SD", "CFI_NumComputations"),
+            regexPattern=c("Mean", "Std Dev", "Number of successful computations"),
+            varType=c("dec", "dec", "int"), stringsAsFactors=FALSE
+        ),
+        data.frame(
+            varName=c("TLI_Mean", "TLI_SD", "TLI_NumComputations"),
+            regexPattern=c("Mean", "Std Dev", "Number of successful computations"),
+            varType=c("dec", "dec", "int"), stringsAsFactors=FALSE
+        ),
+        data.frame(
+            varName=c("AIC_Mean", "AIC_SD", "AIC_NumComputations"),
+            regexPattern=c("Mean", "Std Dev", "Number of successful computations"),
+            varType=c("dec", "dec", "int"), stringsAsFactors=FALSE
+        ),
+        data.frame(
+            varName=c("BIC_Mean", "BIC_SD", "BIC_NumComputations"),
+            regexPattern=c("Mean", "Std Dev", "Number of successful computations"),
+            varType=c("dec", "dec", "int"), stringsAsFactors=FALSE
+        ),
+        data.frame(
+            varName=c("aBIC_Mean", "aBIC_SD", "aBIC_NumComputations"),
+            regexPattern=c("Mean", "Std Dev", "Number of successful computations"),
+            varType=c("dec", "dec", "int"), stringsAsFactors=FALSE
+        ),
+        data.frame(
+            varName=c("RMSEA_Mean", "RMSEA_SD", "RMSEA_NumComputations"),
+            regexPattern=c("Mean", "Std Dev", "Number of successful computations"),
+            varType=c("dec", "dec", "int"), stringsAsFactors=FALSE
+        ),
+        data.frame(
+            varName=c("WRMR_Mean", "WRMR_SD", "WRMR_NumComputations"),
+            regexPattern=c("Mean", "Std Dev", "Number of successful computations"),
+            varType=c("dec", "dec", "int"), stringsAsFactors=FALSE
+        ),
         data.frame( #Information Criterion:: DIC
             varName=c("DIC_Mean", "DIC_SD", "DIC_NumComputations"),
-            regexPattern=c("Mean", "Std Dev", "Number of successful computations"), 
+            regexPattern=c("Mean", "Std Dev", "Number of successful computations"),
             varType=c("dec", "dec", "int"), stringsAsFactors=FALSE
         ),
         data.frame( #Information Criterion:: Estimated number of parameters (pD)
             varName=c("pD_Mean", "pD_SD", "pD_NumComputations"),
-            regexPattern=c("Mean", "Std Dev", "Number of successful computations"), 
+            regexPattern=c("Mean", "Std Dev", "Number of successful computations"),
             varType=c("dec", "dec", "int"), stringsAsFactors=FALSE
         ),
         data.frame( #Information Criterion:: Bayesian (BIC) -- sometimes within Information Criterion, sometimes Information Criteria (above)...
             varName=c("BIC_Mean", "BIC_SD", "BIC_NumComputations"),
-            regexPattern=c("Mean", "Std Dev", "Number of successful computations"), 
+            regexPattern=c("Mean", "Std Dev", "Number of successful computations"),
             varType=c("dec", "dec", "int"), stringsAsFactors=FALSE
         )
-		)
+    )
 
-		#handle two-level models, which return separate srmr for between vs. within
-		if (grepl("twolevel", arglist$AnalysisType, ignore.case=TRUE)) {
-			modelFitSectionHeaders <- append(modelFitSectionHeaders, c(
-							"SRMR \\(Standardized Root Mean Square Residual\\) for the WITHIN level",
-							"SRMR \\(Standardized Root Mean Square Residual\\) for the BETWEEN level"))
+    #handle two-level models, which return separate srmr for between vs. within
+    if (grepl("twolevel", arglist$AnalysisType, ignore.case=TRUE)) {
+      modelFitSectionHeaders <- append(modelFitSectionHeaders, c(
+              "SRMR \\(Standardized Root Mean Square Residual\\) for the WITHIN level",
+              "SRMR \\(Standardized Root Mean Square Residual\\) for the BETWEEN level"))
 
-			modelFitSectionFields <- c(modelFitSectionFields,
-					list(data.frame(
-									varName=c("SRMR.Within_Mean", "SRMR.Within_SD", "SRMR.Within_NumComputations"),
-									regexPattern=c("Mean", "Std Dev", "Number of successful computations"),
-									varType=c("dec", "dec", "int"), stringsAsFactors=FALSE
-							),
-							data.frame(
-									varName=c("SRMR.Between_Mean", "SRMR.Between_SD", "SRMR.Between_NumComputations"),
-									regexPattern=c("Mean", "Std Dev", "Number of successful computations"),
-									varType=c("dec", "dec", "int"), stringsAsFactors=FALSE
-							))
-			)
-		}
-		else {
-			modelFitSectionHeaders <- append(modelFitSectionHeaders, "SRMR \\(Standardized Root Mean Square Residual\\)")
-			modelFitSectionFields <- c(modelFitSectionFields,
-					list(data.frame(
-									varName=c("SRMR_Mean", "SRMR_SD", "SRMR_NumComputations"),
-									regexPattern=c("Mean", "Std Dev", "Number of successful computations"),
-									varType=c("dec", "dec", "int"), stringsAsFactors=FALSE
-							))
-			)
+      modelFitSectionFields <- c(modelFitSectionFields,
+          list(data.frame(
+                  varName=c("SRMR.Within_Mean", "SRMR.Within_SD", "SRMR.Within_NumComputations"),
+                  regexPattern=c("Mean", "Std Dev", "Number of successful computations"),
+                  varType=c("dec", "dec", "int"), stringsAsFactors=FALSE
+              ),
+              data.frame(
+                  varName=c("SRMR.Between_Mean", "SRMR.Between_SD", "SRMR.Between_NumComputations"),
+                  regexPattern=c("Mean", "Std Dev", "Number of successful computations"),
+                  varType=c("dec", "dec", "int"), stringsAsFactors=FALSE
+              ))
+      )
+    }
+    else {
+      modelFitSectionHeaders <- append(modelFitSectionHeaders, "SRMR \\(Standardized Root Mean Square Residual\\)")
+      modelFitSectionFields <- c(modelFitSectionFields,
+          list(data.frame(
+                  varName=c("SRMR_Mean", "SRMR_SD", "SRMR_NumComputations"),
+                  regexPattern=c("Mean", "Std Dev", "Number of successful computations"),
+                  varType=c("dec", "dec", "int"), stringsAsFactors=FALSE
+              ))
+      )
 
-		}
+    }
 
-	}
-	else { #not imputation or monte carlo output
-		modelFitSectionHeaders <- c(
-				"", #section-inspecific parameters
-				"Chi-Square Test of Model Fit",
-				"Chi-Square Test of Model Fit for the Baseline Model",
+  }
+  else { #not imputation or monte carlo output
+    modelFitSectionHeaders <- c(
+        "", #section-inspecific parameters
+        "Chi-Square Test of Model Fit",
+        "Chi-Square Test of Model Fit for the Baseline Model",
         "Chi-Square Test for Difference Testing",
-				"Loglikelihood",
-				"CFI/TLI",
-				"Information Criteria",
-				"RMSEA \\(Root Mean Square Error Of Approximation\\)",
-				"WRMR \\(Weighted Root Mean Square Residual\\)",
+        "Loglikelihood",
+        "CFI/TLI",
+        "Information Criteria",
+        "RMSEA \\(Root Mean Square Error Of Approximation\\)",
+        "WRMR \\(Weighted Root Mean Square Residual\\)",
         "Bayesian Posterior Predictive Checking using Chi-Square",
-        "Information Criterion" #somehow singular for bayes output?
-		)
-		modelFitSectionFields <- list(
-				data.frame(
-						varName=c("Parameters"), #defined outside of information criteria section for non-ML estimators
-						regexPattern=c("Number of Free Parameters"),
-						varType=c("int"), stringsAsFactors=FALSE
-				),
-				data.frame(
-						varName=c("ChiSqM_Value", "ChiSqM_DF", "ChiSqM_PValue", "ChiSqM_ScalingCorrection"),
-						regexPattern=c("^\\s*Value", "Degrees of Freedom", "^\\s*P-Value", "Scaling Correction Factor"),
-						varType=c("dec", "int", "dec", "dec"), stringsAsFactors=FALSE
-				),
-				data.frame(
-						varName=c("ChiSqBaseline_Value", "ChiSqBaseline_DF", "ChiSqBaseline_PValue"),
-						regexPattern=c("^\\s*Value", "Degrees of Freedom", "^\\s*P-Value"),
-						varType=c("dec", "int", "dec"), stringsAsFactors=FALSE
-				),
+        "Information Criterion", #somehow singular for bayes output?
+        "Wald Test of Parameter Constraints"
+    )
+    modelFitSectionFields <- list(
+        data.frame(
+            varName=c("Parameters"), #defined outside of information criteria section for non-ML estimators
+            regexPattern=c("Number of Free Parameters"),
+            varType=c("int"), stringsAsFactors=FALSE
+        ),
+        data.frame(
+            varName=c("ChiSqM_Value", "ChiSqM_DF", "ChiSqM_PValue", "ChiSqM_ScalingCorrection"),
+            regexPattern=c("^\\s*Value", "Degrees of Freedom", "^\\s*P-Value", "Scaling Correction Factor"),
+            varType=c("dec", "int", "dec", "dec"), stringsAsFactors=FALSE
+        ),
+        data.frame(
+            varName=c("ChiSqBaseline_Value", "ChiSqBaseline_DF", "ChiSqBaseline_PValue"),
+            regexPattern=c("^\\s*Value", "Degrees of Freedom", "^\\s*P-Value"),
+            varType=c("dec", "int", "dec"), stringsAsFactors=FALSE
+        ),
         data.frame(
             varName=c("ChiSqDiffTest_Value", "ChiSqDiffTest_DF", "ChiSqDiffTest_PValue"),
             regexPattern=c("^\\s*Value", "Degrees of Freedom", "^\\s*P-Value"),
             varType=c("dec", "int", "dec"), stringsAsFactors=FALSE
         ),
-				data.frame(
-						varName=c("LL", "UnrestrictedLL", "LLCorrectionFactor", "UnrestrictedLLCorrectionFactor"),
-						regexPattern=c("H0 Value", "H1 Value", "H0 Scaling Correction Factor", "H1 Scaling Correction Factor"),
-						varType=c("dec", "dec", "dec", "dec"), stringsAsFactors=FALSE
-				),
-				data.frame(
-						varName=c("CFI", "TLI"),
+        data.frame(
+            varName=c("LL", "UnrestrictedLL", "LLCorrectionFactor", "UnrestrictedLLCorrectionFactor"),
+            regexPattern=c("H0 Value", "H1 Value", "H0 Scaling Correction Factor", "H1 Scaling Correction Factor"),
+            varType=c("dec", "dec", "dec", "dec"), stringsAsFactors=FALSE
+        ),
+        data.frame(
+            varName=c("CFI", "TLI"),
             regexPattern=c("CFI", "TLI"),
-						varType=c("dec", "dec"), stringsAsFactors=FALSE
-				),
-				data.frame(
-						varName=c("AIC", "BIC", "aBIC"),
-						regexPattern=c("Akaike \\(AIC\\)", "Bayesian \\(BIC\\)", "Sample-Size Adjusted BIC"),
-						varType=c("dec", "dec", "dec"), stringsAsFactors=FALSE
-				),
-				data.frame(
-						varName=c("RMSEA_Estimate", "RMSEA_90CI_LB", "RMSEA_90CI_UB", "RMSEA_pLT05"),
-						regexPattern=c("Estimate", "90 Percent C.I.", "90 Percent C.I.", "Probability RMSEA <= .05"),
-						varType=c("dec", "dec[1]", "dec[2]", "dec"), stringsAsFactors=FALSE
-				),
-				data.frame(
-						varName=c("WRMR"),
-						regexPattern=c("Value"),
-						varType=c("dec"), stringsAsFactors=FALSE
-				),
+            varType=c("dec", "dec"), stringsAsFactors=FALSE
+        ),
+        data.frame(
+            varName=c("AIC", "BIC", "aBIC"),
+            regexPattern=c("Akaike \\(AIC\\)", "Bayesian \\(BIC\\)", "Sample-Size Adjusted BIC"),
+            varType=c("dec", "dec", "dec"), stringsAsFactors=FALSE
+        ),
+        data.frame(
+            varName=c("RMSEA_Estimate", "RMSEA_90CI_LB", "RMSEA_90CI_UB", "RMSEA_pLT05"),
+            regexPattern=c("Estimate", "90 Percent C.I.", "90 Percent C.I.", "Probability RMSEA <= .05"),
+            varType=c("dec", "dec[1]", "dec[2]", "dec"), stringsAsFactors=FALSE
+        ),
+        data.frame(
+            varName=c("WRMR"),
+            regexPattern=c("Value"),
+            varType=c("dec"), stringsAsFactors=FALSE
+        ),
         data.frame( #Bayesian Posterior Predictive Checking using Chi-Square
             varName=c("ObsRepChiSqDiff_95CI_LB", "ObsRepChiSqDiff_95CI_UB", "PostPred_PValue"),
             regexPattern=c("+2:the Observed and the Replicated Chi-Square Values", "+2:the Observed and the Replicated Chi-Square Values", "Posterior Predictive P-Value"),
@@ -542,41 +545,46 @@ extractSummaries_1section <- function(modelFitSection, arglist, filename) {
         ),
         data.frame( #Information Criterion
             varName=c("DIC", "pD", "BIC"),
-            regexPattern=c("Deviance \\(DIC\\)", "Estimated Number of Parameters \\(pD\\)", "Bayesian \\(BIC\\)"), #sometimes BIC is listed here (e.g., MI Bayes output) 
+            regexPattern=c("Deviance \\(DIC\\)", "Estimated Number of Parameters \\(pD\\)", "Bayesian \\(BIC\\)"), #sometimes BIC is listed here (e.g., MI Bayes output)
             varType=c("dec", "dec", "dec"), stringsAsFactors=FALSE
+        ),
+        data.frame( #Wald Test of Parameter Constraints
+            varName=c("WaldChiSq_Value", "WaldChiSq_DF", "WaldChiSq_PValue"),
+            regexPattern=c("^\\s*Value", "Degrees of Freedom", "^\\s*P-Value"),
+            varType=c("dec", "int", "dec"), stringsAsFactors=FALSE
         )
-		)
+    )
 
-		if (grepl("twolevel", arglist$AnalysisType, ignore.case=TRUE)) {
+    if (grepl("twolevel", arglist$AnalysisType, ignore.case=TRUE)) {
 
-			modelFitSectionHeaders <- append(modelFitSectionHeaders, "SRMR \\(Standardized Root Mean Square Residual\\)")
+      modelFitSectionHeaders <- append(modelFitSectionHeaders, "SRMR \\(Standardized Root Mean Square Residual\\)")
 
-			modelFitSectionFields <- c(modelFitSectionFields,
-					list(data.frame(
-									varName=c("SRMR.Within", "SRMR.Between"),
-									regexPattern=c("Value for Within", "Value for Between"),
-									varType=c("dec", "dec"), stringsAsFactors=FALSE
-							))
-			)
+      modelFitSectionFields <- c(modelFitSectionFields,
+          list(data.frame(
+                  varName=c("SRMR.Within", "SRMR.Between"),
+                  regexPattern=c("Value for Within", "Value for Between"),
+                  varType=c("dec", "dec"), stringsAsFactors=FALSE
+              ))
+      )
 
-		}
-		else {
+    }
+    else {
 
-			modelFitSectionHeaders <- append(modelFitSectionHeaders, "SRMR \\(Standardized Root Mean Square Residual\\)")
+      modelFitSectionHeaders <- append(modelFitSectionHeaders, "SRMR \\(Standardized Root Mean Square Residual\\)")
 
-			#append two lists together
-			modelFitSectionFields <- c(modelFitSectionFields,
-					list(data.frame(
-									varName=c("SRMR"),
-									regexPattern=c("Value"),
-									varType=c("dec"), stringsAsFactors=FALSE
-							)
-					))
-		}
-	}
+      #append two lists together
+      modelFitSectionFields <- c(modelFitSectionFields,
+          list(data.frame(
+                  varName=c("SRMR"),
+                  regexPattern=c("Value"),
+                  varType=c("dec"), stringsAsFactors=FALSE
+              )
+          ))
+    }
+  }
 
-	arglist <- extractSummaries_1plan(arglist, modelFitSectionHeaders, modelFitSectionFields, modelFitSection, filename)
-	return(arglist)
+  arglist <- extractSummaries_1plan(arglist, modelFitSectionHeaders, modelFitSectionFields, modelFitSection, filename)
+  return(arglist)
 }
 
 
@@ -648,65 +656,142 @@ divideIntoFields <- function(section.text, required) {
 #' # make me!!!
 extractWarningsErrors_1file <- function(outfiletext, filename, input) {
 
-  warnerr <- list(warnings=list(), errors=list())
+  warnerr <- list(warnings = list(), errors = list())
   class(warnerr$errors) <- c("list", "mplus.errors")
   class(warnerr$warnings) <- c("list", "mplus.warnings")
-
   if (!inherits(input, "mplus.inp")) {
     warning("Could not identify warnings and errors; input is not of class mplus.inp")
     return(warnerr)
   }
-
   if (is.null(attr(input, "start.line")) || is.null(attr(input, "end.line")) ||
       attr(input, "start.line") < 0L || attr(input, "end.line") < 0L) {
     warning("Could not identify bounds of input section: ", filename)
     return(warnerr)
   }
 
-  startWarnErr <- attr(input, "end.line") + 1L
+  #handle input warnings and errors first
+  startInputWarnErr <- attr(input, "end.line") + 1L #first eligible line is after input section
+  endInputWarnErr <- grep("^\\s*(INPUT READING TERMINATED NORMALLY|\\*\\*\\* WARNING.*|\\d+ (?:ERROR|WARNING)\\(S\\) FOUND IN THE INPUT INSTRUCTIONS|\\*\\*\\* ERROR.*)\\s*$", outfiletext, ignore.case=TRUE, perl=TRUE)
 
-  endWarnErr <- grep("^\\s*(INPUT READING TERMINATED NORMALLY|\\*\\*\\* WARNING.*|\\d+ (?:ERROR|WARNING)\\(S\\) FOUND IN THE INPUT INSTRUCTIONS|\\*\\*\\* ERROR.*)\\s*$", outfiletext, ignore.case=TRUE, perl=TRUE)
-  if (length(endWarnErr) == 0L) {
-    return(warnerr) #unable to find end of warnings (weird), or there are none.
-  }
-
-  #The above will match all of the possible relevant lines.
-  #To identify warnings section, need to go to first blank line after the final warning or error. (look in next 100 lines)
-  lastWarn <- endWarnErr[length(endWarnErr)]
-  blank <- which(outfiletext[lastWarn:(lastWarn + 100 )] == "")[1L] + lastWarn - 1
-
-  warnerrtext <- outfiletext[startWarnErr[1L]:(blank-1)]
-
-  lines <- friendlyGregexpr("^\\s*(\\*\\*\\* WARNING|\\*\\*\\* ERROR).*\\s*$", warnerrtext, perl=TRUE)
-
-  w <- 1
+  w <- 1 #counters for warnings and errors lists
   e <- 1
 
-  if (!is.null(lines)) {
-    for (l in 1:nrow(lines)) {
-      if (l < nrow(lines)) {
-        warn.err.body <- trimSpace(warnerrtext[(lines[l,"element"] + 1):(lines[l+1,"element"] - 1)])
-      } else {
-        warn.err.body <- trimSpace(warnerrtext[(lines[l,"element"] + 1):length(warnerrtext)])
-      }
+  #only process section if end was identified properly
+  if (length(endInputWarnErr) > 0L) {
+    #The above will match all of the possible relevant lines.
+    #To identify input warnings/errors section, need to go to first blank line after the final warning or error. (look in next 100 lines)
+    lastWarn <- endInputWarnErr[length(endInputWarnErr)]
+    blank <- which(outfiletext[lastWarn:(lastWarn + 100 )] == "")[1L] + lastWarn - 1
 
-      if (substr(lines[l,"tag"], 1, 11) == "*** WARNING") {
-        warnerr$warnings[[w]] <- warn.err.body
-        w <- w + 1
-      } else if (substr(lines[l,"tag"], 1, 9) == "*** ERROR") {
-        warnerr$errors[[e]] <- warn.err.body
-        splittag <- strsplit(lines[l,"tag"], "\\s+", perl=TRUE)[[1L]]
-        if (length(splittag) > 3L && splittag[3L] == "in") {
-          attr(warnerr$errors[[e]], "section") <- tolower(paste(splittag[4L:(which(splittag == "command") - 1L)], collapse="."))
+    warnerrtext <- outfiletext[startInputWarnErr[1L]:(blank-1)]
+
+    lines <- friendlyGregexpr("^\\s*(\\*\\*\\* WARNING|\\*\\*\\* ERROR).*\\s*$", warnerrtext, perl=TRUE)
+
+    if (!is.null(lines)) {
+      for (l in 1:nrow(lines)) {
+        if (l < nrow(lines)) {
+          warn.err.body <- trimSpace(warnerrtext[(lines[l,"element"] + 1):(lines[l+1,"element"] - 1)])
+        } else {
+          warn.err.body <- trimSpace(warnerrtext[(lines[l,"element"] + 1):length(warnerrtext)])
         }
-        e <- e + 1
-      } else { stop ("Cannot discern warning/error type: ", lines[l, "tag"]) }
+
+        if (substr(lines[l,"tag"], 1, 11) == "*** WARNING") {
+          warnerr$warnings[[w]] <- warn.err.body
+          w <- w + 1
+        } else if (substr(lines[l,"tag"], 1, 9) == "*** ERROR") {
+          warnerr$errors[[e]] <- warn.err.body
+          splittag <- strsplit(lines[l,"tag"], "\\s+", perl=TRUE)[[1L]]
+          if (length(splittag) > 3L && splittag[3L] == "in") {
+            attr(warnerr$errors[[e]], "section") <- tolower(paste(splittag[4L:(which(splittag == "command") - 1L)], collapse="."))
+          }
+          e <- e + 1
+        } else { stop ("Cannot discern warning/error type: ", lines[l, "tag"]) }
+      }
     }
   }
 
-  return(warnerr)
+  #now handle estimation errors and warnings
+  #these fall above either
+  #  1) MODEL FIT INFORMATION: model converged with warnings
+  #  2) MODEL RESULTS: model did not converge, so no fit statistics produced
+  #  3) FINAL CLASS COUNTS (occurs for some mixture models, which report class counts before model results)
+  #  4) TESTS OF MODEL FIT (older versions of Mplus)
+  #
+  # It's harder to determine where the section begins, however, because there is no clear boundary
+  # with the preceding section, which is heterogeneous (e.g., sample stats).
+  #
+  # In the case of warnings only, the estimation warnings section is demarcated by
+  # THE MODEL ESTIMATION TERMINATED NORMALLY above and MODEL FIT INFORMATION below.
+  #
+  # In other cases (maybe dependent on Mplus version), warnings are printed above THE MODEL ESTIMATION TERMINATED NORMALLY.
+  # Allow for the possibility that the estimation warnings/errors section begins with WARNING:
+  #
+  # For failed models, the section likely begins with one of three possibilities:
+  #  1) THE MODEL ESTIMATION DID NOT TERMINATE NORMALLY
+  #  2) THE LOGLIKELIHOOD DECREASED
+  #  3) NO CONVERGENCE
+  #
+  # Warnings that can potentially be ignored are prefixed by "WARNING: "
+  # whereas more serious estimation problems (errors) typically have no prefix.
+  #
+  # Blank lines indicate a boundary in each message.
 
+  #the end sections are more well behaved (esp. if there is Tech 9 output). Identify end first, then constrain start to precede end
+  endEstWarnErr <- grep("^\\s*(MODEL FIT INFORMATION|FINAL CLASS COUNTS|MODEL RESULTS|TESTS OF MODEL FIT)\\s*$", outfiletext, ignore.case=TRUE, perl=TRUE)
+
+  if (length(endEstWarnErr) == 0L) { return(warnerr) } #unable to find section properly
+  startEstWarnErr <- grep("^\\s*(WARNING:.*|THE MODEL ESTIMATION DID NOT TERMINATE NORMALLY.*|THE LOGLIKELIHOOD DECREASED.*|THE MODEL ESTIMATION TERMINATED NORMALLY|NO CONVERGENCE\\.\\s+NUMBER OF ITERATIONS EXCEEDED\\..*)\\s*$",
+      outfiletext[1:endEstWarnErr[1L]], ignore.case=TRUE, perl=TRUE)
+
+  if (length(startEstWarnErr) > 0L && length(endEstWarnErr) > 0L) {
+    warnerrtext <- outfiletext[startEstWarnErr[1L]:(endEstWarnErr[1L] - 1)]
+
+    #if the model estimation terminated normally, delete this line from the text to parse (whereas the other start flags indicate a meaningful message)
+    if (length(normexit <- grep("^\\s*THE MODEL ESTIMATION TERMINATED NORMALLY\\s*$", warnerrtext, perl=TRUE, ignore.case=TRUE)) > 0L) {
+      warnerrtext <- warnerrtext[-normexit]
+    }
+
+    if (!any(warnerrtext != "")) {
+      return(warnerr) #no non-blank lines -- just exit function as is
+    }
+
+    #trim blank lines from beginning and end of section
+    warnerrtext <- warnerrtext[min(which(warnerrtext != "")):max(which(warnerrtext != ""))]
+
+    #estimation warnings and errors are separated by blank lines.
+    blanks <- which(warnerrtext == "")
+
+    #trim consecutive blank lines (throw off blanks-based parsing below)
+    consec <- which(diff(blanks) == 1)
+    if (length(consec) > 0L) {
+      warnerrtext <- warnerrtext[-1*blanks[consec]]
+      blanks <- which(warnerrtext == "") #clunky
+    }
+
+    #for loop is probably clunky here, but works for now
+    startMsg <- 1 #first line of a message
+    for (line in 1:length(warnerrtext)) {
+      if ((line %in% blanks && ! (line-1) %in% blanks) || line == length(warnerrtext)) {
+        msg <- trimSpace(warnerrtext[startMsg:ifelse(line %in% blanks, line - 1, line)])
+
+        if (grepl("^\\s*WARNING:", msg[1L], ignore.case=TRUE, perl=TRUE)) {
+          warnerr$warnings[[w]] <- msg
+          w <- w+1
+        } else {
+          warnerr$errors[[e]] <- msg #if not prefixed by WARNING:, treat as error
+          e <- e + 1
+        }
+
+        startMsg <- line + 1
+      }
+    }
+
+  } else { } #warning("Unable to identify estimation warnings and errors section.") }
+
+  return(warnerr)
 }
+
+
 
 #' Extract and parse Mplus input file
 #'
@@ -807,7 +892,7 @@ extractSummaries_1file <- function(outfiletext, filename, input)
     arglist$AnalysisType <- "GENERAL" #Analysis type not specified, default to general
   }
 
-	#extract the data type (important for detecting imputation datasets)
+  #extract the data type (important for detecting imputation datasets)
   if (!is.null(input$data$type)) {
     arglist$DataType <- input$data$type
   }  else if (any(c("montecarlo", "model.population") %in% names(input))) {
@@ -816,59 +901,59 @@ extractSummaries_1file <- function(outfiletext, filename, input)
     arglist$DataType <- "INDIVIDUAL" #Data type not specified, default to individual
   }
 
-	#End input instructions processing
+  #End input instructions processing
 
 
   #BEGIN ANALYSIS SUMMARY PROCESSING
   analysisSummarySection <- getSection("^\\s*SUMMARY OF ANALYSIS\\s*$", outfiletext)
 
-  arglist$Estimator <- extractValue(pattern="^\\s*Estimator\\s*", analysisSummarySection, filename, type="str")  
+  arglist$Estimator <- extractValue(pattern="^\\s*Estimator\\s*", analysisSummarySection, filename, type="str")
   arglist$Observations <- extractValue(pattern="^\\s*Number of observations\\s*", analysisSummarySection, filename, type="int")
 
   #END ANALYSIS SUMMARY PROCESSING
 
   #BEGIN MODEL FIT STATISTICS PROCESSING
-	#handle EFA output, which has separate model fit sections within each file
-	#do this by extracting model fit sections for each and using an rbind call
+  #handle EFA output, which has separate model fit sections within each file
+  #do this by extracting model fit sections for each and using an rbind call
 
   if (grepl("(?!MIXTURE|TWOLEVEL)\\s*EFA\\s+", arglist$AnalysisType, ignore.case=TRUE, perl=TRUE)) {
 
-		factorLB <- as.numeric(sub(".*EFA\\s+(\\d+).*", "\\1", arglist$AnalysisType, perl=TRUE))
-		factorUB <- as.numeric(sub(".*EFA\\s+\\d+\\s+(\\d+).*", "\\1", arglist$AnalysisType, perl=TRUE))
-		factorSeq <- seq(factorLB, factorUB)
-		EFASections <- grep(paste("^\\s*EXPLORATORY FACTOR ANALYSIS WITH (",
-						paste(factorSeq, collapse="|"), ") FACTOR\\(S\\):\\s*$", sep=""), outfiletext, perl=TRUE)
+    factorLB <- as.numeric(sub(".*EFA\\s+(\\d+).*", "\\1", arglist$AnalysisType, perl=TRUE))
+    factorUB <- as.numeric(sub(".*EFA\\s+\\d+\\s+(\\d+).*", "\\1", arglist$AnalysisType, perl=TRUE))
+    factorSeq <- seq(factorLB, factorUB)
+    EFASections <- grep(paste("^\\s*EXPLORATORY FACTOR ANALYSIS WITH (",
+            paste(factorSeq, collapse="|"), ") FACTOR\\(S\\):\\s*$", sep=""), outfiletext, perl=TRUE)
 
-		if (!length(EFASections) > 0) stop("Unable to locate section headers for EFA model fit statistics")
+    if (!length(EFASections) > 0) stop("Unable to locate section headers for EFA model fit statistics")
 
     #need to convert from list to data.frame format to allow for proper handling of rbind below
     arglistBase <- as.data.frame(arglist, stringsAsFactors=FALSE)
 
     efaList <- list()
-		for (thisFactor in 1:length(factorSeq)) {
+    for (thisFactor in 1:length(factorSeq)) {
 
-			#subset output by starting text to be searched at the point where factor output begins
+      #subset output by starting text to be searched at the point where factor output begins
       modelFitSection <- getSection_Blanklines("^(TESTS OF MODEL FIT|MODEL FIT INFORMATION)$", outfiletext[EFASections[thisFactor]:length(outfiletext)])
 
       efaList[[thisFactor]] <- extractSummaries_1section(modelFitSection, arglistBase, filename)
       efaList[[thisFactor]]$NumFactors <- factorSeq[thisFactor]
-		}
+    }
 
     arglist <- do.call(rbind, efaList)
-	}
-	else {
+  }
+  else {
 
-		modelFitSection <- getSection("^(TESTS OF MODEL FIT|MODEL FIT INFORMATION)$", outfiletext)
+    modelFitSection <- getSection("^(TESTS OF MODEL FIT|MODEL FIT INFORMATION)$", outfiletext)
     arglist <- extractSummaries_1section(modelFitSection, arglist, filename)
-	}
+  }
 
   #CLASSIFICATION QUALITY
   classificationQuality <- getSection("^CLASSIFICATION QUALITY$", outfiletext)
 
   if (!is.null(classificationQuality))
     arglist$Entropy <- extractValue(pattern="^\\s*Entropy\\s*", classificationQuality, filename, type="dec")
-    #overkill
-    #arglist <- extractSummaries_1plan(arglist, "", list(data.frame(varName="Entropy", regexPattern="Entropy", varType=c("dec"), stringsAsFactors=FALSE)), classificationQuality, filename)
+  #overkill
+  #arglist <- extractSummaries_1plan(arglist, "", list(data.frame(varName="Entropy", regexPattern="Entropy", varType=c("dec"), stringsAsFactors=FALSE)), classificationQuality, filename)
   else
     arglist$Entropy <- NA_real_ #maybe try to avoid the is null logic and just have extractModelSummary correctly handle null sections
 
@@ -951,8 +1036,8 @@ extractSummaries_1file <- function(outfiletext, filename, input)
 
   }
 
-	#calculate adjusted AIC per Burnham & Anderson(2004), which is better than AIC for non-nested model selection
-	#handle AICC calculation, requires AIC, Parameters, and observations
+  #calculate adjusted AIC per Burnham & Anderson(2004), which is better than AIC for non-nested model selection
+  #handle AICC calculation, requires AIC, Parameters, and observations
   if (!is.null(arglist$Parameters) && !is.na(arglist$Parameters) &&
       !is.null(arglist$AIC) && !is.na(arglist$AIC) &&
       !is.null(arglist$Observations) && !is.na(arglist$Observations)) {
@@ -1023,9 +1108,12 @@ extractSummaries_1file <- function(outfiletext, filename, input)
 #' \item{ObsRepChiSqDiff_95CI_LB}{Lower bound of 95\% confidence interval for the difference between observed and replicated chi-square values}
 #' \item{ObsRepChiSqDiff_95CI_UB}{Upper bound of 95\% confidence interval for the difference between observed and replicated chi-square values}
 #' \item{PostPred_PValue}{Posterior predictive p-value}
+#' \item{BLRT_RequestedDraws}{Number of requested bootstrap draws for TECH14.}
 #' \item{BLRT_KM1LL}{Log-likelihood of the K-1 model (one less class) for the Bootstrapped Likelihood Ratio Test (TECH14).}
+#' \item{BLRT_2xLLDiff}{Two times the log-likelihood difference of the models with K and K-1 classes (TECH14).}
+#' \item{BLRT_ParamDiff}{Difference in the number of parameters for models with K and K-1 classes (TECH14).}
 #' \item{BLRT_PValue}{P-value of the Bootstrapped Likelihood Ratio Test (TECH14) testing whether the K class model is significantly better than K-1}
-#' \item{BLRT_Numdraws}{The number of bootstrapped samples used in the Bootstrapped Likelihood Ratio Test}
+#' \item{BLRT_SuccessfulDraws}{The number of successful bootstrapped samples used in the Bootstrapped Likelihood Ratio Test}
 #' \item{SRMR}{Standardized root mean square residual}
 #' \item{SRMR.Between}{For TYPE=TWOLEVEL output, standardized root mean square residual for between level}
 #' \item{SRMR.Within}{For TYPE=TWOLEVEL output, standardized root mean square residual for within level}
@@ -1047,7 +1135,6 @@ extractSummaries_1file <- function(outfiletext, filename, input)
 #'
 #' @author Michael Hallquist
 #' @seealso \code{\link{regex}}, \code{\link{runModels}}, \code{\link{readModels}}
-#' @importFrom plyr rbind.fill
 #' @keywords interface
 #' @export
 #' @examples
@@ -1059,7 +1146,7 @@ extractModelSummaries <- function(target=getwd(), recursive=FALSE, filefilter) {
   #retain working directory and reset at end of run
   curdir <- getwd()
 
-	outfiles <- getOutFileList(target, recursive, filefilter)
+  outfiles <- getOutFileList(target, recursive, filefilter)
 
   details <- list()
 
@@ -1090,12 +1177,12 @@ extractModelSummaries <- function(target=getwd(), recursive=FALSE, filefilter) {
   #reset working directory
   setwd(curdir)
 
-	#cleanup columns containing only NAs
-	for (col in names(details)) {
-		if (all(is.na(details[[col]]))) details[[col]] <- NULL
-	}
+  #cleanup columns containing only NAs
+  for (col in names(details)) {
+    if (all(is.na(details[[col]]))) details[[col]] <- NULL
+  }
 
-	return(details)
+  return(details)
 }
 
 
@@ -1122,7 +1209,6 @@ addHeaderToSavedata <- function(outfile, directory=getwd()) {
 #' @param dropCols Columns to drop (use only one of keep/dropCols)
 #' @param sortBy How to sort
 #' @return Extracted and sorted data
-#' @importFrom plyr rbind.fill
 #' @keywords internal
 #' @examples
 #' # make me!!!
@@ -1131,6 +1217,8 @@ subsetModelList <- function(modelList, keepCols, dropCols, sortBy) {
   #if passed an mplus.model.list from readModels, then just extract summaries for disply
   if (inherits(modelList, "mplus.model.list")) {
     modelList <- do.call("rbind.fill", sapply(modelList, "[", "summaries"))
+  } else if (inherits(modelList, "mplus.model")) { #single model (e.g., EFA output with many factor solutions)
+    modelList <- modelList$summaries
   }
 
   #only allow keep OR drop.
@@ -1269,10 +1357,10 @@ HTMLSummaryTable <- function(modelList, filename=file.path(getwd(), "Model Compa
   MplusData <- subsetModelList(modelList, keepCols, dropCols, sortBy)
 
   print(x=xtable(MplusData),
-        type="html",
-        file=filename,
-        include.rownames = FALSE,
-        NA.string = "."
+      type="html",
+      file=filename,
+      include.rownames = FALSE,
+      NA.string = "."
   )
 
   if (display) {
@@ -1347,21 +1435,21 @@ extractResiduals <- function(outfiletext, filename) {
     return(list())
   }
   else if (length(residSubsections) > 1)
-      groupNames <- make.names(gsub("^\\s*ESTIMATED MODEL AND RESIDUALS \\(OBSERVED - ESTIMATED\\)( FOR ([\\w\\d\\s\\.,]+))*\\s*$", "\\2", residSection[matchlines], perl=TRUE))
+    groupNames <- make.names(gsub("^\\s*ESTIMATED MODEL AND RESIDUALS \\(OBSERVED - ESTIMATED\\)( FOR ([\\w\\d\\s\\.,]+))*\\s*$", "\\2", residSection[matchlines], perl=TRUE))
 
   residList <- list()
   #multiple groups possible
   for (g in 1:length(residSubsections)) {
     targetList <- list()
 
-    targetList[["meanEst"]] <- matrixExtract(residSubsections[[g]], "Model Estimated Means/Intercepts/Thresholds", filename)
-    targetList[["meanResid"]] <- matrixExtract(residSubsections[[g]], "Residuals for Means/Intercepts/Thresholds", filename)
-    targetList[["meanResid.std"]] <- matrixExtract(residSubsections[[g]], "Standardized Residuals \\(z-scores\\) for Means/Intercepts/Thresholds", filename)
-    targetList[["meanResid.norm"]] <- matrixExtract(residSubsections[[g]], "Normalized Residuals for Means/Intercepts/Thresholds", filename)
-    targetList[["covarianceEst"]] <- matrixExtract(residSubsections[[g]], "Model Estimated Covariances/Correlations/Residual Correlations", filename)
-    targetList[["covarianceResid"]] <- matrixExtract(residSubsections[[g]], "Residuals for Covariances/Correlations/Residual Correlations", filename)
-    targetList[["covarianceResid.std"]] <- matrixExtract(residSubsections[[g]], "Standardized Residuals \\(z-scores\\) for Covariances/Correlations/Residual Corr", filename)
-    targetList[["covarianceResid.norm"]] <- matrixExtract(residSubsections[[g]], "Normalized Residuals for Covariances/Correlations/Residual Correlations", filename)
+    targetList[["meanEst"]] <- matrixExtract(residSubsections[[g]], "Model Estimated Means(/Intercepts/Thresholds)*", filename)
+    targetList[["meanResid"]] <- matrixExtract(residSubsections[[g]], "Residuals for Means(/Intercepts/Thresholds)*", filename)
+    targetList[["meanResid.std"]] <- matrixExtract(residSubsections[[g]], "Standardized Residuals \\(z-scores\\) for Means(/Intercepts/Thresholds)*", filename)
+    targetList[["meanResid.norm"]] <- matrixExtract(residSubsections[[g]], "Normalized Residuals for Means(/Intercepts/Thresholds)*", filename)
+    targetList[["covarianceEst"]] <- matrixExtract(residSubsections[[g]], "Model Estimated Covariances(/Correlations/Residual Correlations)*", filename)
+    targetList[["covarianceResid"]] <- matrixExtract(residSubsections[[g]], "Residuals for Covariances(/Correlations/Residual Correlations)*", filename)
+    targetList[["covarianceResid.std"]] <- matrixExtract(residSubsections[[g]], "Standardized Residuals \\(z-scores\\) for Covariances(/Correlations/Residual Corr)*", filename)
+    targetList[["covarianceResid.norm"]] <- matrixExtract(residSubsections[[g]], "Normalized Residuals for Covariances(/Correlations/Residual Correlations)*", filename)
     targetList[["slopeEst"]] <- matrixExtract(residSubsections[[g]], "Model Estimated Slopes", filename)
     targetList[["slopeResid"]] <- matrixExtract(residSubsections[[g]], "Residuals for Slopes", filename)
 
@@ -1664,14 +1752,14 @@ extractTech7 <- function(outfiletext, filename) {
   #not sure whether there are sometimes multiple groups within this section.
   tech7Section <- getSection("^TECHNICAL 7 OUTPUT$", outfiletext)
   if (is.null(tech7Section)) return(list()) #no tech7 output
-  
+
   tech7List <- list()
-  
+
   tech7Subsections <- getMultilineSection("SAMPLE STATISTICS WEIGHTED BY ESTIMATED CLASS PROBABILITIES FOR CLASS \\d+",
       tech7Section, filename, allowMultiple=TRUE)
-  
+
   matchlines <- attr(tech7Subsections, "matchlines")
-  
+
   if (length(tech7Subsections) == 0) {
     warning("No sections found within tech7 output.")
     return(list())
@@ -1679,23 +1767,23 @@ extractTech7 <- function(outfiletext, filename) {
   else if (length(tech7Subsections) > 1) {
     groupNames <- make.names(gsub("^\\s*SAMPLE STATISTICS WEIGHTED BY ESTIMATED CLASS PROBABILITIES FOR (CLASS \\d+)\\s*$", "\\1", tech7Section[matchlines], perl=TRUE))
   }
-  
+
   for (g in 1:length(tech7Subsections)) {
     targetList <- list()
-    
+
     targetList[["classSampMeans"]] <- matrixExtract(tech7Subsections[[g]], "Means", filename)
     targetList[["classSampCovs"]] <- matrixExtract(tech7Subsections[[g]], "Covariances", filename)
-    
+
     if (length(tech7Subsections) > 1) {
       class(targetList) <- c("list", "mplus.tech7")
       tech7List[[groupNames[g]]] <- targetList
     }
     else
-      tech7List <- targetList    
+      tech7List <- targetList
   }
-  
+
   class(tech7List) <- c("list", "mplus.tech7")
-  
+
   return(tech7List)
 }
 
@@ -1758,8 +1846,8 @@ extractTech10 <- function(outfiletext, filename) {
 
 #' Extract Technical 12 from Mplus
 #'
-#' The TECH12 option is used in conjunction with TYPE=MIXTURE to request residuals for observed 
-#' versus model estimated means, variances, covariances, univariate skewness, and univariate 
+#' The TECH12 option is used in conjunction with TYPE=MIXTURE to request residuals for observed
+#' versus model estimated means, variances, covariances, univariate skewness, and univariate
 #' kurtosis. The observed values come from the total sample. The estimated values are computed as
 #' a mixture across the latent classes.
 #'
@@ -1775,14 +1863,14 @@ extractTech12 <- function(outfiletext, filename) {
   #not sure whether there are sometimes multiple groups within this section.
   tech12Section <- getSection("^TECHNICAL 12 OUTPUT$", outfiletext)
   if (is.null(tech12Section)) return(list()) #no tech12 output
-  
+
   tech12List <- list()
-  
+
   tech12Subsections <- getMultilineSection("ESTIMATED MIXED MODEL AND RESIDUALS \\(OBSERVED - EXPECTED\\)",
       tech12Section, filename, allowMultiple=TRUE)
-  
+
   matchlines <- attr(tech12Subsections, "matchlines")
-  
+
   if (length(tech12Subsections) == 0) {
     warning("No sections found within tech12 output.")
     return(list())
@@ -1790,10 +1878,10 @@ extractTech12 <- function(outfiletext, filename) {
   else if (length(tech12Subsections) > 1) {
     warning("extractTech12 does not yet know how to handle multiple sections (if such exist)")
   }
-  
+
   for (g in 1:length(tech12Subsections)) {
     targetList <- list()
-    
+
     targetList[["obsMeans"]] <- matrixExtract(tech12Subsections[[g]], "Observed Means", filename)
     targetList[["mixedMeans"]] <- matrixExtract(tech12Subsections[[g]], "Estimated Mixed Means", filename)
     targetList[["mixedMeansResid"]] <- matrixExtract(tech12Subsections[[g]], "Residuals for Mixed Means", filename)
@@ -1806,7 +1894,7 @@ extractTech12 <- function(outfiletext, filename) {
     targetList[["obsKurtosis"]] <- matrixExtract(tech12Subsections[[g]], "Observed Kurtosis", filename)
     targetList[["mixedKurtosis"]] <- matrixExtract(tech12Subsections[[g]], "Estimated Mixed Kurtosis", filename)
     targetList[["mixedKurtosisResid"]] <- matrixExtract(tech12Subsections[[g]], "Residuals for Mixed Kurtosis", filename)
-    
+
     if (length(tech12Subsections) > 1) {
       class(targetList) <- c("list", "mplus.tech12")
       tech12List[[g]] <- targetList #no known case where there are many output sections
@@ -1814,9 +1902,9 @@ extractTech12 <- function(outfiletext, filename) {
     else
       tech12List <- targetList
   }
-  
+
   class(tech12List) <- c("list", "mplus.tech12")
-  
+
   return(tech12List)
 }
 
@@ -1902,11 +1990,11 @@ extractClassCounts <- function(outfiletext, filename) {
 
   mostLikelyCounts <- getSection("^CLASSIFICATION OF INDIVIDUALS BASED ON THEIR MOST LIKELY LATENT CLASS MEMBERSHIP$", outfiletext)
   countlist[["mostLikely"]] <- getClassCols(mostLikelyCounts)
-  
+
   #most likely by posterior probability section
   mostLikelyProbs <- getSection("^Average Latent Class Probabilities for Most Likely Latent Class Membership \\(Row\\)$", outfiletext)
   if (length(mostLikelyProbs) > 1L) { mostLikelyProbs <- mostLikelyProbs[-1L] } #remove line 1: "by Latent Class (Column)"
-    
+
   #Example:
   #Average Latent Class Probabilities for Most Likely Latent Class Membership (Row)
   #by Latent Class (Column)
@@ -1927,15 +2015,15 @@ extractClassCounts <- function(outfiletext, filename) {
   #same, but for classification probabilities
   classificationProbs <- getSection("^Classification Probabilities for the Most Likely Latent Class Membership \\(Row\\)$", outfiletext)
   if (length(classificationProbs) > 1L) { classificationProbs <- classificationProbs[-1L] } #remove line 1: "by Latent Class (Column)"
-  
+
   countlist[["classificationProbs.mostLikely"]] <- unlabeledMatrixExtract(classificationProbs, filename)
-  
+
   #same, but for classification probability logits
   classificationLogitProbs <- getSection("^Logits for the Classification Probabilities for the Most Likely Latent Class Membership \\(Row\\)$", outfiletext)
   if (length(classificationLogitProbs) > 1L) { classificationLogitProbs <- classificationLogitProbs[-1L] } #remove line 1: "by Latent Class (Column)"
-  
+
   countlist[["logitProbs.mostLikely"]] <- unlabeledMatrixExtract(classificationLogitProbs, filename)
-  
+
 
   return(countlist)
 }
@@ -1956,7 +2044,7 @@ unlabeledMatrixExtract <- function(outfiletext, filename) {
   #This function extends the matrixExtract function by allowing for the matrix to be recreated
   #to have no header labels and where section headers have a blank line on either side. Only example is in the class counts section, where when there
   #are many classes, the most likely x posterior probability matrix is too wide and is output like this:
-  
+
   #       1        2        3        4        5        6        7        8        9
   #
   #1   0.885    0.000    0.000    0.017    0.024    0.000    0.000    0.019    0.055
@@ -1982,19 +2070,19 @@ unlabeledMatrixExtract <- function(outfiletext, filename) {
   #8   0.159
   #9   0.016
   #10  0.539
-  
+
   #Only one matrix can be extracted from outfiletext since sections are unlabeled
-  
+
   if (length(outfiletext) > 0L && length(outfiletext) > 1L) {
-    
+
     #pattern match: 1) blank line; 2) integers line; 3) blank line
     #find these cases, then add "DUMMY" to each of the header blank lines
-    
+
     blankLines <- which(outfiletext == "")
-    
+
     if (length(blankLines) > 0L) {
       headerLines <- c()
-      
+
       for (b in 1:length(blankLines)) {
         if (b < length(blankLines) && blankLines[b+1] == blankLines[b] + 2) {
           # a blank line followed by a non-blank line followed by a blank line...
@@ -2006,15 +2094,15 @@ unlabeledMatrixExtract <- function(outfiletext, filename) {
           }
         }
       }
-      
+
       #add the header to blank lines preceding class labels row
       outfiletext[headerLines] <- "DUMMY"
-      
+
       #now use matrix extract to reconstruct matrix
       unlabeledMat <- matrixExtract(outfiletext, "DUMMY", filename)
-      
+
       return(unlabeledMat)
-      
+
     } else {
       return(NULL)
     }

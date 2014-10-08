@@ -50,7 +50,7 @@
 #' \item{usevariables}{A character vector of the variables from the \code{R} data set to be used.}
 #' \item{rdata}{The \code{R} data set to use for the model.}
 #'
-#' @author Joshua Wiley
+#' @author Joshua F. Wiley <jwiley.psych@@gmail.com>
 #' @export
 #' @seealso \code{\link{mplusModeler}}
 #' @keywords interface
@@ -90,9 +90,15 @@ mplusObject <- function(TITLE = NULL, DATA = NULL, VARIABLE = NULL, DEFINE = NUL
 
   if (autov && is.null(usevariables) && !is.null(rdata) && !is.null(MODEL)) {
     v <- colnames(rdata)
-    v <- v[sapply(v, grepl, x = paste(c(MODEL, DEFINE), collapse = "\n"), ignore.case=TRUE)]
+    v.model <- v[sapply(v, grepl, x = MODEL, ignore.case=TRUE)]
+    v.setup <- v[sapply(v, grepl, x = paste(c(VARIABLE, DEFINE), collapse = "\n"), ignore.case=TRUE)]
     message("No R variables to use specified. \nSelected automatically as any variable name that occurs in the MODEL or DEFINE section.")
-    usevariables <- v
+    usevariables <- unique(c(v.model, v.setup))
+
+    if (!isTRUE(grepl("usevariables", VARIABLE, ignore.case=TRUE)) && length(v.setup) & length(v.model)) {
+      message("There are define or analysis variables, but no USEVARIABLES statement in Mplus.\nYou may need to add any defined variables.\nSuggest:")
+      message(sprintf("USEVARIABLES = %s;", paste(v.model, collapse = " ")))
+    }
   }
 
   i <- duplicated(substr(usevariables, start = 1, stop = 8))
@@ -115,7 +121,7 @@ mplusObject <- function(TITLE = NULL, DATA = NULL, VARIABLE = NULL, DEFINE = NUL
     usevariables = usevariables,
     rdata = rdata)
 
-  class(object) <- c("list", "mplusObject")
+  class(object) <- c("mplusObject", "list")
 
   return(object)
 }
@@ -136,7 +142,7 @@ mplusObject <- function(TITLE = NULL, DATA = NULL, VARIABLE = NULL, DEFINE = NUL
 #' @return An (updated) Mplus model object
 #' @export
 #' @method update mplusObject
-#' @author Joshua Wiley
+#' @author Joshua F. Wiley <jwiley.psych@@gmail.com>
 #' @keywords interface
 #' @examples
 #' example1 <- mplusObject(MODEL = "mpg ON wt;",
@@ -204,7 +210,7 @@ update.mplusObject <- function(object, ...) {
 #'   input file.
 #' @keywords interface
 #' @export
-#' @author Joshua Wiley
+#' @author Joshua F. Wiley <jwiley.psych@@gmail.com>
 #' @seealso \code{\link{prepareMplusData}}, \code{\link{mplusModeler}}
 #' @examples
 #' # example mplusObject
@@ -272,8 +278,11 @@ createSyntax <- function(object, filename, check=TRUE, add=FALSE) {
 #'
 #' @param object An object of class mplusObject
 #' @param dataout the name of the file to output the data to for Mplus.
-#' @param modelout the name of the output file for the model. This is the file all the syntax is
-#'   written to, which becomes the Mplus input file. Typically ends in .inp.
+#'   If missing, defaults to \code{modelout} changing .inp to .dat.
+#' @param modelout the name of the output file for the model.
+#'   This is the file all the syntax is written to, which becomes the
+#'   Mplus input file. It should end in .inp.  If missing, defaults to
+#'   \code{dataout} changing the extension to .inp.
 #' @param run an integer indicating how many models should be run. Defaults to zero.
 #'   If zero, the data and model input files are all created, but the model is not run.
 #'   This can be useful for seeing how the function works and what setup is done. If one, a basic
@@ -294,9 +303,9 @@ createSyntax <- function(object, filename, check=TRUE, add=FALSE) {
 #'   containing the regular Mplus model output and the boot object, respectively.
 #'   In all cases, the Mplus data file and input files are created.
 #' @seealso \code{\link{runModels}} and \code{\link{readModels}}
-#' @importFrom boot boot
+#' @import boot
 #' @export
-#' @author Joshua Wiley
+#' @author Joshua F. Wiley <jwiley.psych@@gmail.com>
 #' @examples
 #' \dontrun{
 #' # minimal example of a model using builtin data, allowing R
@@ -377,10 +386,18 @@ mplusModeler <- function(object, dataout, modelout, run = 0L,
   Sys.setenv(SHELL = Sys.getenv("COMSPEC"))
   on.exit(Sys.setenv(SHELL = oldSHELL))
 
+  if (missing(modelout) & missing(dataout)) {
+    stop("You must specify either modelout or dataout")
+  } else if (missing(dataout)) {
+    dataout <- gsub("(^.*)(\\.inp$)", "\\1.dat", modelout)
+  } else if (missing(modelout)) {
+    modelout <- gsub("(.*)(\\..+$)", "\\1.inp", dataout)
+  }
+
   .run <- function(data, i, boot = TRUE, ...) {
     prepareMplusData(df = object$rdata[i, object$usevariables],
       filename = dataout, inpfile = tempfile(), ...)
-    runModels()
+  runModels(filefilter = modelout)
     outfile <- gsub("(^.*)(\\.inp$)", "\\1.out", modelout)
     results <- readModels(target = outfile)
     if (!boot) {
@@ -409,7 +426,7 @@ mplusModeler <- function(object, dataout, modelout, run = 0L,
   if (run > 1) {
     bootres <- boot(object$rdata, .run, R = run, sim = "ordinary")
     finalres$boot <- bootres
-    class(finalres) <- c("list", "boot.mplus.model")
+    class(finalres) <- c("boot.mplus.model", "list")
   }
 
   if (run) {
@@ -556,7 +573,7 @@ mplusModeler <- function(object, dataout, modelout, run = 0L,
 #'     as autoregressive.}
 #' @keywords interface
 #' @export
-#' @author Joshua Wiley
+#' @author Joshua F. Wiley <jwiley.psych@@gmail.com>
 #' @examples
 #' # all five structures collapsing
 #' mplusRcov(letters[1:4], "homogenous", "rho", "e", TRUE)
@@ -684,12 +701,13 @@ mplusRcov <- function(x, type = c("homogenous", "heterogenous", "cs", "toeplitz"
 #' @param x A data frame (specifically the type returned by \code{readModels}) containing
 #'   parameters. Should be specific such as unstandardized and the data frame must have a
 #'   column called \sQuote{paramHeader}.
-#' @param type A character string indicating the types of parameters to be returned.
-#'   Options currently include \sQuote{directed}, \sQuote{undirected}, \sQuote{expectation},
-#'   and \sQuote{variability}. Directed paths include both regression of one variable
-#'   \code{ON} another, as well as indicator variables (which are assumed caused by the
-#'   underlying latent variable).  Note that the latter case includes variables in growth
-#'   models.  Undirected paths currently only include covariances, indicated by the \code{WITH}
+#' @param params A character string indicating the types of parameters to be returned.
+#'   Options currently include \sQuote{regression}, \sQuote{loading}, \sQuote{undirected},
+#'   \sQuote{expectation}, \sQuote{variability}, and \sQuote{new} for new/additional parameters.
+#'   Regressions include regression of one variable
+#'   \code{ON} another. \sQuote{loading} include indicator variables (which are assumed caused by the
+#'   underlying latent variable) and variables in latent growth models (\code{BY} or \code{|}).
+#'   Undirected paths currently only include covariances, indicated by the \code{WITH}
 #'   syntax in Mplus. Expectation paths are the unconditional or conditional expectations of
 #'   variables.  In other words those parameters related to the first moments. For independent
 #'   variables, these are the means, \eqn{E(X)} and the conditional means or intercepts,
@@ -699,10 +717,10 @@ mplusRcov <- function(x, type = c("homogenous", "heterogenous", "cs", "toeplitz"
 #'   As with the expectations, variances are unconditional for variables that are not
 #'   predicted or conditioned on any other variable in the model whereas residual variances
 #'   are conditional on the model. Note that \R uses fuzzy matching so that each of these
-#'   can be called via shorthand, \sQuote{d}, \sQuote{u}, \sQuote{e}, and \sQuote{v}.
+#'   can be called via shorthand, \sQuote{r}, \sQuote{l}, \sQuote{u}, \sQuote{e}, and \sQuote{v}.
 #' @return A subset data frame with the parameters of interest.
 #' @seealso \code{\link{readModels}}
-#' @author Joshua Wiley
+#' @author Joshua F. Wiley <jwiley.psych@@gmail.com>
 #' @keywords utils
 #' @export
 #' @examples
@@ -719,28 +737,43 @@ mplusRcov <- function(x, type = c("homogenous", "heterogenous", "cs", "toeplitz"
 #'
 #'   # store just the unstandardized parameters in 'd'
 #'   d <- res$results$parameters$unstandardized
-#'   # extract just directed parameters
-#'   paramExtract(d, "directed")
+#'   # extract just regression parameters
+#'   paramExtract(d, "regression")
 #'   # extract other types of parameters using shorthand
 #'   paramExtract(d, "u")
 #'   paramExtract(d, "e")
 #'   paramExtract(d, "v")
 #' }
-paramExtract <- function(x, type = c("directed", "undirected", "expectation", "variability")) {
+paramExtract <- function(x, params = c("regression", "loading", "undirected", "expectation", "variability", "new")) {
+  #readModels("C:/Program Files/Mplus/Mplus Examples/User's Guide Examples/Outputs/ex3.9.out")
+  params <- match.arg(params)
 
-  type <- match.arg(type)
-
-  keys <- switch(type,
-    directed = c("ON", "BY", "\\|"),
+  keys <- switch(params,
+    regression = c("ON"),
+    loading = c("BY", "\\|"),
     undirected = c("WITH"),
     expectation = c("Means", "Intercepts", "Thresholds"),
-    variability = c("Variances", "Residual.Variances"))
-  index <- rowSums(sapply(keys, function(pattern) {
+    variability = c("Variances", "Residual.Variances"),
+    new = "New.Additional.Parameters")
+  index <- sapply(keys, function(pattern) {
     grepl(paste0(".*", pattern, "$"), x[, "paramHeader"])
-  })) > 0
+  })
+  if (is.matrix(index)) {
+    index <- rowSums(index) > 0
+  } else {
+    index <- sum(index) > 0
+  }
+  index <- which(index)
 
-  return(x[index, ])
+  # catch cases where there is nothing to extract
+  if (!length(index)) return(NULL)
+
+  output <- x[index, , drop=FALSE]
+  attr(output, "type") <- params
+
+  return(output)
 }
+
 
 #' Check Mplus code for missing semicolons or too long lines.
 #'
@@ -766,7 +799,7 @@ paramExtract <- function(x, type = c("directed", "undirected", "expectation", "v
 #' @seealso \code{\link{mplusModeler}}
 #' @keywords utils
 #' @export
-#' @author Joshua Wiley
+#' @author Joshua F. Wiley <jwiley.psych@@gmail.com>
 #' @examples
 #'
 #' # sample input
@@ -837,7 +870,7 @@ parseMplus <- function(x, add = FALSE) {
 #'   returns \code{FALSE}, a character string note that \code{rmVarWarnings}
 #'   could not run.
 #' @seealso \code{\link{mplusModeler}}
-#' @author Joshua Wiley
+#' @author Joshua F. Wiley <jwiley.psych@@gmail.com>
 #' @keywords internal
 #' @examples
 #' # to do
@@ -887,7 +920,7 @@ rmVarWarnings <- function(file) {
 #' @return NULL, changes the current working directory
 #' @keywords utilities
 #' @export
-#' @author Joshua Wiley
+#' @author Joshua F. Wiley <jwiley.psych@@gmail.com>
 #' @examples
 #' \dontrun{
 #' # an example just using the base

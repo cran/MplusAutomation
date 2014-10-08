@@ -271,7 +271,6 @@ getSection_Blanklines <- function(sectionHeader, outfiletext) {
 
 #IRT PARAMETERIZATION IN TWO-PARAMETER LOGISTIC (or PROBIT) METRIC
 #LOGISTIC REGRESSION ODDS RATIO RESULTS
-#ALTERNATIVE PARAMETERIZATIONS FOR THE CATEGORICAL LATENT VARIABLE REGRESSION
 
 
 getSection <- function(sectionHeader, outfiletext, headers="standard", omit=NULL) {
@@ -296,6 +295,7 @@ getSection <- function(sectionHeader, outfiletext, headers="standard", omit=NULL
         "MODEL RESULTS", "LOGISTIC REGRESSION ODDS RATIO RESULTS", "RESULTS IN PROBABILITY SCALE",
         "IRT PARAMETERIZATION IN TWO-PARAMETER LOGISTIC METRIC",
         "IRT PARAMETERIZATION IN TWO-PARAMETER PROBIT METRIC",
+        "ALTERNATIVE PARAMETERIZATIONS FOR THE CATEGORICAL LATENT VARIABLE REGRESSION",
         "LATENT CLASS ODDS RATIO RESULTS", "LOGRANK OUTPUT", "STANDARDIZED MODEL RESULTS",
         "R-SQUARE", "QUALITY OF NUMERICAL RESULTS", "TECHNICAL OUTPUT", "TECHNICAL \\d+ OUTPUT",
         "TECHNICAL 5/6 OUTPUT",
@@ -311,6 +311,7 @@ getSection <- function(sectionHeader, outfiletext, headers="standard", omit=NULL
         "EQUALITY TESTS OF MEANS",
         "THE FOLLOWING DATA SET\\(S\\) DID NOT RESULT IN A COMPLETED REPLICATION:",
         "RESIDUAL OUTPUT", "MODEL MODIFICATION INDICES", "MODEL COMMAND WITH FINAL ESTIMATES USED AS STARTING VALUES",
+        "Available post-processing tools:",
         "FACTOR SCORE INFORMATION \\(COMPLETE DATA\\)", "SUMMARY OF FACTOR SCORES", "PLOT INFORMATION", "SAVEDATA INFORMATION",
         "RESULTS SAVING INFORMATION", "SAMPLE STATISTICS FOR ESTIMATED FACTOR SCORES", "DIAGRAM INFORMATION",
         "Beginning Time:\\s*\\d+:\\d+:\\d+", "MUTHEN & MUTHEN"
@@ -388,6 +389,9 @@ splitFilePath <- function(abspath) {
   if (!is.character(abspath)) stop("Path not a character string")
   if (nchar(abspath) < 1 || is.na(abspath)) stop("Path is missing or of zero length")
 
+  #trailing slash screws up file.exists call on Windows: https://bugs.r-project.org/bugzilla/show_bug.cgi?id=14721
+  abspath <- sub("(\\\\|/)?$", "", abspath, perl=TRUE)  
+  
   components <- strsplit(abspath, split="[\\/]")[[1]]
   lcom <- length(components)
 
