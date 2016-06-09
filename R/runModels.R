@@ -29,20 +29,20 @@
 runModels_Interactive <- function(directory=getwd(), recursive="0",
     showOutput="1", replaceOutfile="1", checkDate="0", logFile="1")
 {
-  if (!suppressWarnings(require(tcltk))) {
+  if (!suppressWarnings(requireNamespace("tcltk"))) {
     stop("The tcltk package is absent. Interactive folder selection cannot function.")
   }
 
   #button handler functions
   onOK <- function() {
-    #tkmessageBox(message="clicked ok")
-    recursiveChecked <- as.logical(as.numeric(tclvalue(recursiveChecked)))
-    showOutputChecked <- as.logical(as.numeric(tclvalue(showOutputChecked)))
-    replaceOutfileChecked <- as.logical(as.numeric(tclvalue(replaceOutfileChecked)))
-    checkDateChecked <- as.logical(as.numeric(tclvalue(checkDateChecked)))
-    directory <- tclvalue(directoryVariable)
-    logFileChecked <- as.logical(as.numeric(tclvalue(logFileChecked)))
-    logFile_TCL <- tclvalue(logFile_TCL)
+    #tcltk::tkmessageBox(message="clicked ok")
+    recursiveChecked <- as.logical(as.numeric(tcltk::tclvalue(recursiveChecked)))
+    showOutputChecked <- as.logical(as.numeric(tcltk::tclvalue(showOutputChecked)))
+    replaceOutfileChecked <- as.logical(as.numeric(tcltk::tclvalue(replaceOutfileChecked)))
+    checkDateChecked <- as.logical(as.numeric(tcltk::tclvalue(checkDateChecked)))
+    directory <- tcltk::tclvalue(directoryVariable)
+    logFileChecked <- as.logical(as.numeric(tcltk::tclvalue(logFileChecked)))
+    logFile_TCL <- tcltk::tclvalue(logFile_TCL)
 
     #check date may only be checked if replace outfile is on.
     if (!replaceOutfileChecked) checkDateChecked <- FALSE
@@ -54,149 +54,149 @@ runModels_Interactive <- function(directory=getwd(), recursive="0",
     #if log file unchecked, pass NULL
     if (!logFileChecked) logFile_TCL <- NULL
 
-#    cat(paste("directory:", tclvalue(directoryVariable), "\nrecurseChecked: ", recursiveChecked,
+#    cat(paste("directory:", tcltk::tclvalue(directoryVariable), "\nrecurseChecked: ", recursiveChecked,
 #            "\nshowOutputChecked:", showOutputChecked,
 #            "\nreplaceOutfileChecked:", replaceOutfileChecked, "\ncheckDateChecked:", checkDateChecked,
 #            "\nlogFileChecked:", logFileChecked, "\nlogFilename:", as.character(logFile_TCL), "\n"
 #            ))
 
-    tkgrab.release(top)
-    tkdestroy(top)
+    tcltk::tkgrab.release(top)
+    tcltk::tkdestroy(top)
 
     runModels(directory=directory, recursive=recursiveChecked,
         showOutput=showOutputChecked, replaceOutfile=replaceOutfileStr, logFile=logFile_TCL)
   }
   onCancel <- function(){
-    #tkgrab.release(top)
-    tkdestroy(top)
+    #tcltk::tkgrab.release(top)
+    tcltk::tkdestroy(top)
     return()
   }
   onBrowse <- function(){
     #choose.dir is a prettier way to select directory
-    #tclvalue(directoryVariable) <- tclvalue(tkchooseDirectory())
-    if (.Platform$OS.type == "unix") runDir <- tclvalue(tkchooseDirectory())
-    else runDir <- tclvalue(tclVar(choose.dir(tclvalue(directoryVariable), "Choose the Mplus Run Directory")))
+    #tcltk::tclvalue(directoryVariable) <- tcltk::tclvalue(tcltk::tkchooseDirectory())
+    if (.Platform$OS.type == "unix") runDir <- tcltk::tclvalue(tcltk::tkchooseDirectory())
+    else runDir <- tcltk::tclvalue(tcltk::tclVar(choose.dir(tcltk::tclvalue(directoryVariable), "Choose the Mplus Run Directory")))
 
     if (!runDir == "NA") {
-      tclvalue(directoryVariable) <- runDir
+      tcltk::tclvalue(directoryVariable) <- runDir
       #if log file is still at its default (getwd() + "Mplus Run Models.log"), switch to run directory
-      if (userSetLogFile == FALSE) tclvalue(logFile_TCL) <- file.path(runDir, "Mplus Run Models.log")
+      if (userSetLogFile == FALSE) tcltk::tclvalue(logFile_TCL) <- file.path(runDir, "Mplus Run Models.log")
     }
 
   }
   onLogBrowse <- function(){
-    splitPath <- splitFilePath(tclvalue(logFile_TCL))
-    #logDir <- tclvalue(tkgetSaveFile(defaultextension="log", initialdir=chartr("/", "\\", splitPath$directory), initialfile=splitPath$filename))
-    logDir <- tclvalue(tkgetSaveFile(defaultextension="log", initialdir=splitPath$directory, initialfile=splitPath$filename))
+    splitPath <- splitFilePath(tcltk::tclvalue(logFile_TCL))
+    #logDir <- tcltk::tclvalue(tcltk::tkgetSaveFile(defaultextension="log", initialdir=chartr("/", "\\", splitPath$directory), initialfile=splitPath$filename))
+    logDir <- tcltk::tclvalue(tcltk::tkgetSaveFile(defaultextension="log", initialdir=splitPath$directory, initialfile=splitPath$filename))
     if (!logDir == "") {
-      tclvalue(logFile_TCL) <- logDir
+      tcltk::tclvalue(logFile_TCL) <- logDir
       userSetLogFile <<- TRUE #needs to be assigned in parent env
     }
   }
   onReplace <- function() {
-    curVal <- as.character(tclvalue(replaceOutfileChecked))
+    curVal <- as.character(tcltk::tclvalue(replaceOutfileChecked))
     #cat(paste("replace checked is:", curVal))
     if (curVal == "1") {
-      tkconfigure(checkDateCB, state="!disabled")
-      tkconfigure(checkDateLabel, state="!disabled")
+      tcltk::tkconfigure(checkDateCB, state="!disabled")
+      tcltk::tkconfigure(checkDateLabel, state="!disabled")
     }
     else if (curVal == "0") {
-      tkconfigure(checkDateCB, state="disabled")
-      tkconfigure(checkDateLabel, state="disabled")
+      tcltk::tkconfigure(checkDateCB, state="disabled")
+      tcltk::tkconfigure(checkDateLabel, state="disabled")
     }
-    #; tclvalue(replaceChecked) <- "0" }
+    #; tcltk::tclvalue(replaceChecked) <- "0" }
   }
   onLogcheck <- function() {
-    curVal <- as.character(tclvalue(logFileChecked))
+    curVal <- as.character(tcltk::tclvalue(logFileChecked))
     #cat(paste("replace checked is:", curVal))
     if (curVal == "1") {
-      tkconfigure(logField, state="!disabled")
-      tkconfigure(BrowseLog.but, state="!disabled")
-      tkconfigure(logFilenameLabel, state="!disabled")
-      #tkgrid.configure(logFrame, row="5")
+      tcltk::tkconfigure(logField, state="!disabled")
+      tcltk::tkconfigure(BrowseLog.but, state="!disabled")
+      tcltk::tkconfigure(logFilenameLabel, state="!disabled")
+      #tcltk::tkgrid.configure(logFrame, row="5")
     }
     else if (curVal == "0") {
-      tkconfigure(logField, state="disabled")
-      tkconfigure(BrowseLog.but, state="disabled")
-      tkconfigure(logFilenameLabel, state="disabled")
-      #tkgrid.forget(logFrame)
+      tcltk::tkconfigure(logField, state="disabled")
+      tcltk::tkconfigure(BrowseLog.but, state="disabled")
+      tcltk::tkconfigure(logFilenameLabel, state="disabled")
+      #tcltk::tkgrid.forget(logFrame)
     }
-    #; tclvalue(replaceChecked) <- "0" }
+    #; tcltk::tclvalue(replaceChecked) <- "0" }
   }
 
-  top <- tktoplevel(borderwidth=10)
-  tkgrid(ttklabel(top, text="Run Mplus Models", font="-size 14 -family Arial -weight bold"), sticky="w")
+  top <- tcltk::tktoplevel(borderwidth=10)
+  tcltk::tkgrid(tcltk::ttklabel(top, text="Run Mplus Models", font="-size 14 -family Arial -weight bold"), sticky="w")
 
-  tkwm.title(top, "Run Mplus Models")
-  directoryVariable <- tclVar(directory)
-  locationFrame <- ttkframe(top)
-  locationField <- ttkentry(locationFrame, width="80", textvariable=directoryVariable)
-  Browse.but <- ttkbutton(locationFrame, text="Browse", command=onBrowse)
+  tcltk::tkwm.title(top, "Run Mplus Models")
+  directoryVariable <- tcltk::tclVar(directory)
+  locationFrame <- tcltk::ttkframe(top)
+  locationField <- tcltk::ttkentry(locationFrame, width="80", textvariable=directoryVariable)
+  Browse.but <- tcltk::ttkbutton(locationFrame, text="Browse", command=onBrowse)
 
-  tkgrid(ttklabel(locationFrame,text="Target directory:"), locationField, Browse.but)
-  tkgrid(locationFrame, sticky="w")
+  tcltk::tkgrid(tcltk::ttklabel(locationFrame,text="Target directory:"), locationField, Browse.but)
+  tcltk::tkgrid(locationFrame, sticky="w")
 
-  optionsFrame <- ttklabelframe(top, text="Options", borderwidth=10, relief="groove")
-  #optionsFrame <- ttkframe(top, borderwidth=20, relief="groove")
-  #tkgrid(ttklabel(optionsFrame,text="Options", font="-weight bold -size 12"), sticky="w")
-  recursiveChecked <- tclVar(recursive)
-  recurseCB <- ttkcheckbutton(optionsFrame, variable=recursiveChecked)
-  tkgrid(ttklabel(optionsFrame,text="Run models in nested subdirectories"), recurseCB, sticky="w")
+  optionsFrame <- tcltk::ttklabelframe(top, text="Options", borderwidth=10, relief="groove")
+  #optionsFrame <- tcltk::ttkframe(top, borderwidth=20, relief="groove")
+  #tcltk::tkgrid(tcltk::ttklabel(optionsFrame,text="Options", font="-weight bold -size 12"), sticky="w")
+  recursiveChecked <- tcltk::tclVar(recursive)
+  recurseCB <- tcltk::ttkcheckbutton(optionsFrame, variable=recursiveChecked)
+  tcltk::tkgrid(tcltk::ttklabel(optionsFrame,text="Run models in nested subdirectories"), recurseCB, sticky="w")
 
-  replaceOutfileChecked <- tclVar(replaceOutfile)
-  replaceCB <- ttkcheckbutton(optionsFrame, variable=replaceOutfileChecked, command=onReplace)
-  tkgrid(ttklabel(optionsFrame,text="Re-run models that have existing output files"), replaceCB, sticky="w")
+  replaceOutfileChecked <- tcltk::tclVar(replaceOutfile)
+  replaceCB <- tcltk::ttkcheckbutton(optionsFrame, variable=replaceOutfileChecked, command=onReplace)
+  tcltk::tkgrid(tcltk::ttklabel(optionsFrame,text="Re-run models that have existing output files"), replaceCB, sticky="w")
 
-  checkDateChecked <- tclVar(checkDate)
+  checkDateChecked <- tcltk::tclVar(checkDate)
   if (as.logical(as.numeric(replaceOutfile)) == TRUE) initialState <- "!disabled"
   else initialState <- "disabled"
-  checkDateLabel <- ttklabel(optionsFrame, text="    -> Only re-run if input file is newer than existing output (check date)   ", state=initialState)
-  checkDateCB <- ttkcheckbutton(optionsFrame, variable=checkDateChecked, state=initialState)
-  tkgrid(checkDateLabel, checkDateCB, sticky="w")
+  checkDateLabel <- tcltk::ttklabel(optionsFrame, text="    -> Only re-run if input file is newer than existing output (check date)   ", state=initialState)
+  checkDateCB <- tcltk::ttkcheckbutton(optionsFrame, variable=checkDateChecked, state=initialState)
+  tcltk::tkgrid(checkDateLabel, checkDateCB, sticky="w")
 
-  showOutputChecked <- tclVar(showOutput)
-  showOutputCB <- ttkcheckbutton(optionsFrame, variable=showOutputChecked)
-  tkgrid(ttklabel(optionsFrame,text="Show Mplus output on console"), showOutputCB, sticky="w")
+  showOutputChecked <- tcltk::tclVar(showOutput)
+  showOutputCB <- tcltk::ttkcheckbutton(optionsFrame, variable=showOutputChecked)
+  tcltk::tkgrid(tcltk::ttklabel(optionsFrame,text="Show Mplus output on console"), showOutputCB, sticky="w")
 
   #include log file checkbox in options frame
-  logFileChecked <- tclVar(logFile)
-  logFileCB <- ttkcheckbutton(optionsFrame, variable=logFileChecked, command=onLogcheck)
-  tkgrid(ttklabel(optionsFrame, text="Log Mplus Run Details to File"), logFileCB, sticky="w")
+  logFileChecked <- tcltk::tclVar(logFile)
+  logFileCB <- tcltk::ttkcheckbutton(optionsFrame, variable=logFileChecked, command=onLogcheck)
+  tcltk::tkgrid(tcltk::ttklabel(optionsFrame, text="Log Mplus Run Details to File"), logFileCB, sticky="w")
 
   #add the options frame to the dialog
-  tkgrid(optionsFrame, sticky="w")
+  tcltk::tkgrid(optionsFrame, sticky="w")
 
   #setup the filename field for the log file
-  logFile_TCL <- tclVar(file.path(directory, "Mplus Run Models.log"))
+  logFile_TCL <- tcltk::tclVar(file.path(directory, "Mplus Run Models.log"))
   userSetLogFile <- FALSE
-  logFrame <- ttkframe(optionsFrame) #borderwidth="5m")
+  logFrame <- tcltk::ttkframe(optionsFrame) #borderwidth="5m")
   if (as.logical(as.numeric(logFile)) == TRUE) initialState <- "!disabled"
   else initialState <- "disabled"
-  logField <- ttkentry(logFrame, width="50", textvariable=logFile_TCL, state=initialState)
-  logFilenameLabel <- ttklabel(logFrame,text="    -> Log filename:", state=initialState)
-  BrowseLog.but <- ttkbutton(logFrame, text="Browse", command=onLogBrowse, state=initialState)
+  logField <- tcltk::ttkentry(logFrame, width="50", textvariable=logFile_TCL, state=initialState)
+  logFilenameLabel <- tcltk::ttklabel(logFrame,text="    -> Log filename:", state=initialState)
+  BrowseLog.but <- tcltk::ttkbutton(logFrame, text="Browse", command=onLogBrowse, state=initialState)
 
   #add log frame to grid
-  tkgrid(logFilenameLabel, logField, BrowseLog.but)
-  tkgrid(logFrame, sticky="w", columnspan="2")
+  tcltk::tkgrid(logFilenameLabel, logField, BrowseLog.but)
+  tcltk::tkgrid(logFrame, sticky="w", columnspan="2")
 
 
   #add button frame to grid
-  buttonsFrame <- ttkframe(top)
-  OK.but <- ttkbutton(buttonsFrame,text="OK",command=onOK)
-  Cancel.but <- ttkbutton(buttonsFrame, text="Cancel", command=onCancel)
-  tkgrid(OK.but, ttklabel(buttonsFrame,text="   "), Cancel.but, sticky="w")
-  tkgrid(buttonsFrame, sticky="w")
+  buttonsFrame <- tcltk::ttkframe(top)
+  OK.but <- tcltk::ttkbutton(buttonsFrame,text="OK",command=onOK)
+  Cancel.but <- tcltk::ttkbutton(buttonsFrame, text="Cancel", command=onCancel)
+  tcltk::tkgrid(OK.but, tcltk::ttklabel(buttonsFrame,text="   "), Cancel.but, sticky="w")
+  tcltk::tkgrid(buttonsFrame, sticky="w")
 
-  #tkgrid.size(top)
+  #tcltk::tkgrid.size(top)
 
-  tkwm.resizable(top, 0, 0)
-  tkbind(top, "<Return>", onOK)
-  tkbind(top, "<Escape>", onCancel)
-  tkwm.deiconify(top)
-  #tkgrab.set(top)
-  tkfocus(top)
-  tkwait.window(top)
+  tcltk::tkwm.resizable(top, 0, 0)
+  tcltk::tkbind(top, "<Return>", onOK)
+  tcltk::tkbind(top, "<Escape>", onCancel)
+  tcltk::tkwm.deiconify(top)
+  #tcltk::tkgrab.set(top)
+  tcltk::tkfocus(top)
+  tcltk::tkwait.window(top)
 
 
 }
@@ -228,7 +228,7 @@ runModels_Interactive <- function(directory=getwd(), recursive="0",
 #'   defaults). Allows the user to specify the name/path of the Mplus executable to be used for
 #'   running models. This covers situations where Mplus is not in the system's path,
 #'   or where one wants to test different versions of the Mplus program.
-#' @param killOnFail optional. Windows only for now. If \code{TRUE}, kill all processes named mplus.exe when 
+#' @param killOnFail optional. Windows only for now. If \code{TRUE}, kill all processes named mplus.exe when
 #'   \code{runModels} does not terminate normally. Defaults to \code{TRUE}.
 #'
 #' @return None. Function is used for its side effects (running models).
@@ -248,7 +248,13 @@ runModels <- function(directory=getwd(), recursive=FALSE, filefilter = NULL, sho
   #retain working directory and reset at end of run
   #need to set here to ensure that logTarget initialization below is within target directory, not getwd()
   curdir <- getwd()
-  directory <- sub("(\\\\|/)?$", "", directory, perl=TRUE) #remove trailing slash, which generates file.exists error on windows: https://bugs.r-project.org/bugzilla/show_bug.cgi?id=14721
+  ## remove trailing slash, which generates file.exists error on windows: https://bugs.r-project.org/bugzilla/show_bug.cgi?id=14721
+  directory <- sub("(\\\\|/)?$", "", directory, perl=TRUE)
+  ## however, trailing slash is needed if at root of a drive on Windows
+  if (.Platform$OS.type == "windows" && grepl("^[a-zA-Z]:$", directory)) {
+    directory <- paste0(directory, "/")
+  }
+
   if (!file.exists(directory)) { stop("runModels cannot change to directory: ", directory)}
   setwd(directory)
   normalComplete <- FALSE
@@ -280,7 +286,7 @@ runModels <- function(directory=getwd(), recursive=FALSE, filefilter = NULL, sho
   #if the function gets interrupted (e.g., the user presses escape), kill the Mplus process (doesn't happen automatically).
   exitRun <- function() {
     deleteOnKill <- TRUE #whether to delete unfinished output
-    
+
     if (normalComplete == FALSE && isLogOpen()) {
       writeLines("Run terminated abnormally", logTarget)
       flush(logTarget)

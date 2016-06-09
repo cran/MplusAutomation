@@ -33,13 +33,14 @@
 #'   plot(myModel$bparameters$valid_draw)
 #' }
 #' @keywords interface
+#' @importFrom graphics lines par plot
 mplus.traceplot <- function(mplus.model, rows=4, cols=4, parameters_only=TRUE) {
   #uses gh5 output, requires PLOT: TYPE=PLOT2
   
   if (!inherits(mplus.model, "mplus.model")) stop("mplus.traceplot function requires an mplus.model object (from readModels).")
 
   #if(!(suppressWarnings(require(rhdf5)) && suppressWarnings(require(lattice)))) stop("mplus.traceplot requires rhdf5 and lattice packages")
-  if(!suppressWarnings(require(rhdf5))) {
+  if(!suppressWarnings(requireNamespace("rhdf5"))) {
     stop(paste(c("mplus.traceplot requires the rhdf5 package, which is not installed.\n",
                 "To install, in an R session, type:\n",
                 "  source(\"http://bioconductor.org/biocLite.R\")\n",
@@ -148,7 +149,7 @@ mplus.traceplot <- function(mplus.model, rows=4, cols=4, parameters_only=TRUE) {
 #' To do: add details
 #'
 #' @param dotModel Basic model
-#' @param name
+#' @param name name of model
 #' @param role The role of a variable (can be multiple)
 #' @param type The type of variable
 #' @return the dotModel with added node
@@ -190,7 +191,6 @@ connectNodes <- function(dotModel, node1, node2, connectionType) {
 #' @return a dot model
 #' @keywords internal
 graphModel <- function(model) {
-  # require(plyr)
   if (!inherits(model, "data.frame")) stop("Parameter model must be a data.frame")
 
   byOnWith <- grep("\\.(BY|ON|WITH)$", model$paramHeader, perl=TRUE)

@@ -71,9 +71,9 @@ readModels <- function(target=getwd(), recursive=FALSE, filefilter) {
     allFiles[[listID]]$errors <- warn_err$errors
     allFiles[[listID]]$summaries <- extractSummaries_1file(outfiletext, curfile, input=inp)
     allFiles[[listID]]$parameters <- extractParameters_1file(outfiletext, curfile)
-    allFiles[[listID]]$class_counts <- extractClassCounts(outfiletext, curfile) #latent class counts
+    allFiles[[listID]]$class_counts <- extractClassCounts(outfiletext, curfile, allFiles[[listID]]$summaries) #latent class counts
     allFiles[[listID]]$mod_indices <- extractModIndices_1file(outfiletext, curfile)
-    allFiles[[listID]]$savedata_info <- fileInfo <- l_getSavedata_Fileinfo(curfile, outfiletext)
+    allFiles[[listID]]$savedata_info <- fileInfo <- l_getSavedata_Fileinfo(curfile, outfiletext, allFiles[[listID]]$summaries)
 
     #missing widths indicative of MI/MC run
     if (!is.null(fileInfo) && is.na(fileInfo[["fileVarWidths"]])) {
@@ -108,8 +108,8 @@ readModels <- function(target=getwd(), recursive=FALSE, filefilter) {
     gh5 <- list()
     gh5fname <- sub("^(.*)\\.out$", "\\1.gh5", curfile, ignore.case=TRUE, perl=TRUE)
     if (file.exists(gh5fname)) {
-      if (suppressWarnings(require(rhdf5))) {
-        gh5 <- h5dump(file=gh5fname, recursive=TRUE, load=TRUE)
+      if (requireNamespace("rhdf5", quietly = TRUE)) {
+        gh5 <- rhdf5::h5dump(file=gh5fname, recursive=TRUE, load=TRUE)
       } else { warning(paste(c("Unable to read gh5 file because rhdf5 package not installed.\n",
                     "To install, in an R session, type:\n",
                     "  source(\"http://bioconductor.org/biocLite.R\")\n",
@@ -220,6 +220,31 @@ extractValue <- function(pattern, textToScan, filename, type="int") {
 #' @examples
 #' # make me!!!
 getMultilineSection <- function(header, outfiletext, filename, allowMultiple=FALSE, allowSpace=TRUE) {
+  # Apr2015: Need greater flexibility in how a section is defined. For certain sections, indentation is unhelpful. Example:
+
+  # Chi-Square Test of Model Fit for the Binary and Ordered Categorical
+  # (Ordinal) Outcomes
+  #
+  # Pearson Chi-Square
+  #
+  # Value                             13.286
+  # Degrees of Freedom                     9
+  # P-Value                           0.1501
+  #
+  # Likelihood Ratio Chi-Square
+  #
+  # Value                             16.731
+  # Degrees of Freedom                     9
+  # P-Value                           0.0531
+
+  # Likewise, in the above example there is a second line to the header that should be skipped before developing the section
+  #
+  # New syntax:
+  # {+2i}Chi-Square Test of Model Fit for the Binary and Ordered Categorical::{+1b}Pearson Chi-Square
+  #
+  # +X specifies how many lines (after the header line itself) should be skipped prior to searching for the section end
+  # i,b specifies whether to use identical indentation {i} (which has been the standard up to now) or to use a blank line {b} to identify the section end
+  # If no curly braces are provided, assume {+1i}
 
   #allow for multiple depths (subsections) separated by ::
   #will just extract from deepest depth
@@ -228,6 +253,28 @@ getMultilineSection <- function(header, outfiletext, filename, allowMultiple=FAL
   sectionList <- list()
   targetText <- outfiletext
   for (level in 1:length(header)) {
+    if ((searchCmd <- regexpr("^\\{(\\+\\d+)*([ib])*\\}", header[level], perl=TRUE)) > 0) {
+      if ((o_start <- attr(searchCmd, "capture.start")[1]) > 0) {
+        offset <- substr(header[level], o_start, o_start + attr(searchCmd, "capture.length")[1] - 1)
+        offset <- as.integer(sub("+", "", offset, fixed=TRUE)) #remove + sign
+      } else {
+        offset <- 1
+      }
+
+      if ((s_start <- attr(searchCmd, "capture.start")[2]) > 0) {
+        stype <- substr(header[level], s_start, s_start + attr(searchCmd, "capture.length")[2] - 1)
+        stopifnot(nchar(stype) == 1 && stype %in% c("i", "b"))
+      } else {
+        stype <- "i"
+      }
+
+      #remove search type information from header
+      header[level] <- substr(header[level], searchCmd[1] + attr(searchCmd, "match.length"), nchar(header[level]))
+    } else {
+      offset <- 1
+      stype <- "i"
+    }
+
     if (allowSpace==TRUE) headerRow <- grep(paste("^\\s*", header[level], "\\s*$", sep=""), targetText, perl=TRUE)
     else headerRow <- grep(paste("^", header[level], "$", sep=""), targetText, perl=TRUE) #useful for equality of means where we just want anything with 0 spaces
 
@@ -236,29 +283,45 @@ getMultilineSection <- function(header, outfiletext, filename, allowMultiple=FAL
         #locate the position of the first non-space character
         numSpacesHeader <- regexpr("\\S+.*$", targetText[headerRow[r]], perl=TRUE) - 1
 
-        sectionStart <- headerRow[r] + 1 #skip header row itself
-        #if (outfiletext[sectionStart] == "") sectionStart <- sectionStart + 1 #As far as I know, there is always a blank line after the header, so skip past it
+        sectionStart <- headerRow[r] + offset #skip header row itself
 
-        sameLevelMatch <- FALSE
-        readStart <- sectionStart #counter variable to chunk through output
-        while(sameLevelMatch == FALSE) {
-          #read 20-line chunks of text to find next line with identical identation
-          #more efficient than running gregexpr on whole output
-          #match position of first non-space character, subtract 1 to get num spaces.
-          #blank lines will generate a value of -2, so shouldn't throw off top-level match
-          firstNonspaceCharacter <- lapply(gregexpr("\\S+.*$", targetText[readStart:(readStart+19)], perl=TRUE), FUN=function(x) x - 1)
-          samelevelMatches <- which(firstNonspaceCharacter == numSpacesHeader)
-          if (length(samelevelMatches) > 0) {
-            sameLevelMatch <- TRUE
-            sectionEnd <- readStart+samelevelMatches[1] - 2 #-1 for going to line before next header, another -1 for readStart
-          }
-          else if (readStart+19 >= length(targetText)) {
-            sameLevelMatch <- TRUE
-            sectionEnd <- length(targetText)
-          }
-          else readStart <- readStart + 20 #process next batch
+        if (stype == "i") {
+          sameLevelMatch <- FALSE
+          readStart <- sectionStart #counter variable to chunk through output
+          while(sameLevelMatch == FALSE) {
+            #read 20-line chunks of text to find next line with identical identation
+            #more efficient than running gregexpr on whole output
+            #match position of first non-space character, subtract 1 to get num spaces.
+            #blank lines will generate a value of -2, so shouldn't throw off top-level match
+            firstNonspaceCharacter <- lapply(gregexpr("\\S+.*$", targetText[readStart:(readStart+19)], perl=TRUE), FUN=function(x) x - 1)
+            samelevelMatches <- which(firstNonspaceCharacter == numSpacesHeader)
+            if (length(samelevelMatches) > 0) {
+              sameLevelMatch <- TRUE
+              sectionEnd <- readStart+samelevelMatches[1] - 2 #-1 for going to line before next header, another -1 for readStart
+            }
+            else if (readStart+19 >= length(targetText)) {
+              sameLevelMatch <- TRUE
+              sectionEnd <- length(targetText)
+            }
+            else readStart <- readStart + 20 #process next batch
 
-          #if (readStart > 100000) browser()#stop ("readStart exceeded 100000. Must be formatting problem.")
+            #if (readStart > 100000) browser()#stop ("readStart exceeded 100000. Must be formatting problem.")
+          }
+        } else if (stype == "b") {
+          blankFound <- FALSE
+          i <- 0
+          while(!grepl("^\\s*$", targetText[sectionStart+i], perl=T)) {
+            i <- i + 1
+            if (i > 100000) { stop ("searched for next blank line on 100000 rows without success.") }
+          }
+          if (i == 0) {
+            #first line of section was blank, so just set start and end to same
+            #could force search to look beyond first line since it would be rare that a blank line after header match should count as empty
+            sectionEnd <- sectionStart
+          } else {
+            sectionEnd <- sectionStart + i - 1 #line prior to blank
+          }
+
         }
 
         #there will probably be collisions between use of nested headers :: and use of allowMultiple
@@ -351,16 +414,16 @@ extractSummaries_1section <- function(modelFitSection, arglist, filename) {
   #MI and Montecarlo data types have fundamentally different output (means and sds per fit stat)
   if (grepl("imputation", arglist$DataType, ignore.case=TRUE) || grepl("montecarlo", arglist$DataType, ignore.case=TRUE)) {
     modelFitSectionHeaders <- c(
-        "", #section-inspecific parameters
+        "", #section-nonspecific parameters
         "Chi-Square Test of Model Fit",
 #        "Chi-Square Test of Model Fit for the Baseline Model",
         "Loglikelihood::H0 Value",
         "Loglikelihood::H1 Value",
         "CFI/TLI::CFI",
         "CFI/TLI::TLI",
-        "Information Criteria::Akaike \\(AIC\\)",
-        "Information Criteria::Bayesian \\(BIC\\)",
-        "Information Criteria::Sample-Size Adjusted BIC \\(n\\* = \\(n \\+ 2\\) / 24\\)",
+        "Information Criteria( Including the Auxiliary Part)*::Akaike \\(AIC\\)",
+        "Information Criteria( Including the Auxiliary Part)*::Bayesian \\(BIC\\)",
+        "Information Criteria( Including the Auxiliary Part)*c::Sample-Size Adjusted BIC \\(n\\* = \\(n \\+ 2\\) / 24\\)",
         "RMSEA \\(Root Mean Square Error Of Approximation\\)",
         "WRMR \\(Weighted Root Mean Square Residual\\)",
         "Information Criterion::Deviance \\(DIC\\)",
@@ -370,7 +433,7 @@ extractSummaries_1section <- function(modelFitSection, arglist, filename) {
     modelFitSectionFields <- list(
         data.frame(
             varName=c("Parameters"), #defined outside of information criteria section for non-ML estimators
-            regexPattern=c("Number of Free Parameters"),
+            regexPattern=c("^Number of Free Parameters"),
             varType=c("int"), stringsAsFactors=FALSE
         ),
         data.frame(
@@ -482,10 +545,15 @@ extractSummaries_1section <- function(modelFitSection, arglist, filename) {
         "", #section-inspecific parameters
         "Chi-Square Test of Model Fit",
         "Chi-Square Test of Model Fit for the Baseline Model",
+        "{+3i}Chi-Square Test of Model Fit for the Binary and Ordered Categorical::{+2b}Pearson Chi-Square", #chi-square header spans two lines, so +3i
+        "{+3i}Chi-Square Test of Model Fit for the Binary and Ordered Categorical::{+2b}Likelihood Ratio Chi-Square",
+        "Chi-Square Test for MCAR under the Unrestricted Latent Class Indicator Model::{+2b}Pearson Chi-Square", #use blank line to find pearson within section
+        "Chi-Square Test for MCAR under the Unrestricted Latent Class Indicator Model::{+2b}Likelihood Ratio Chi-Square",
         "Chi-Square Test for Difference Testing",
-        "Loglikelihood",
+        "Loglikelihood( Including the Auxiliary Part)*",
         "CFI/TLI",
-        "Information Criteria",
+        "Information Criteria( Including the Auxiliary Part)*",
+        "Information Criteria Including the Auxiliary Part",
         "RMSEA \\(Root Mean Square Error Of Approximation\\)",
         "WRMR \\(Weighted Root Mean Square Residual\\)",
         "Bayesian Posterior Predictive Checking using Chi-Square",
@@ -495,7 +563,7 @@ extractSummaries_1section <- function(modelFitSection, arglist, filename) {
     modelFitSectionFields <- list(
         data.frame(
             varName=c("Parameters"), #defined outside of information criteria section for non-ML estimators
-            regexPattern=c("Number of Free Parameters"),
+            regexPattern=c("^Number of Free Parameters"), #only match beginning of line (aux section has its own indented variant)
             varType=c("int"), stringsAsFactors=FALSE
         ),
         data.frame(
@@ -505,6 +573,26 @@ extractSummaries_1section <- function(modelFitSection, arglist, filename) {
         ),
         data.frame(
             varName=c("ChiSqBaseline_Value", "ChiSqBaseline_DF", "ChiSqBaseline_PValue"),
+            regexPattern=c("^\\s*Value", "Degrees of Freedom", "^\\s*P-Value"),
+            varType=c("dec", "int", "dec"), stringsAsFactors=FALSE
+        ),
+        data.frame(
+            varName=c("ChiSqCategoricalPearson_Value", "ChiSqCategoricalPearson_DF", "ChiSqCategoricalPearson_PValue"),
+            regexPattern=c("^\\s*Value", "Degrees of Freedom", "^\\s*P-Value"),
+            varType=c("dec", "int", "dec"), stringsAsFactors=FALSE
+        ),
+        data.frame(
+            varName=c("ChiSqCategoricalLRT_Value", "ChiSqCategoricalLRT_DF", "ChiSqCategoricalLRT_PValue"),
+            regexPattern=c("^\\s*Value", "Degrees of Freedom", "^\\s*P-Value"),
+            varType=c("dec", "int", "dec"), stringsAsFactors=FALSE
+        ),
+        data.frame(
+            varName=c("ChiSqMCARUnrestrictedPearson_Value", "ChiSqMCARUnrestrictedPearson_DF", "ChiSqMCARUnrestrictedPearson_PValue"),
+            regexPattern=c("^\\s*Value", "Degrees of Freedom", "^\\s*P-Value"),
+            varType=c("dec", "int", "dec"), stringsAsFactors=FALSE
+        ),
+        data.frame(
+            varName=c("ChiSqMCARUnrestrictedLRT_Value", "ChiSqMCARUnrestrictedLRT_DF", "ChiSqMCARUnrestrictedLRT_PValue"),
             regexPattern=c("^\\s*Value", "Degrees of Freedom", "^\\s*P-Value"),
             varType=c("dec", "int", "dec"), stringsAsFactors=FALSE
         ),
@@ -527,6 +615,11 @@ extractSummaries_1section <- function(modelFitSection, arglist, filename) {
             varName=c("AIC", "BIC", "aBIC"),
             regexPattern=c("Akaike \\(AIC\\)", "Bayesian \\(BIC\\)", "Sample-Size Adjusted BIC"),
             varType=c("dec", "dec", "dec"), stringsAsFactors=FALSE
+        ),
+        data.frame(
+            varName=c("ParametersWithAux"),
+            regexPattern=c("Number of Free Parameters"),
+            varType=c("int"), stringsAsFactors=FALSE
         ),
         data.frame(
             varName=c("RMSEA_Estimate", "RMSEA_90CI_LB", "RMSEA_90CI_UB", "RMSEA_pLT05"),
@@ -1200,215 +1293,6 @@ addHeaderToSavedata <- function(outfile, directory=getwd()) {
 
 }
 
-
-#' Subset a list of Mplus model results
-#'
-#' a helper function to be used by wrappers that generate HTML, LaTex, and on-screen displays of summary statistics
-#' @param modelList A list object of Mplus models
-#' @param keepCols Columns to keep
-#' @param dropCols Columns to drop (use only one of keep/dropCols)
-#' @param sortBy How to sort
-#' @return Extracted and sorted data
-#' @keywords internal
-#' @examples
-#' # make me!!!
-subsetModelList <- function(modelList, keepCols, dropCols, sortBy) {
-
-  #if passed an mplus.model.list from readModels, then just extract summaries for disply
-  if (inherits(modelList, "mplus.model.list")) {
-    modelList <- do.call("rbind.fill", sapply(modelList, "[", "summaries"))
-  } else if (inherits(modelList, "mplus.model")) { #single model (e.g., EFA output with many factor solutions)
-    modelList <- modelList$summaries
-  }
-
-  #only allow keep OR drop.
-  if(!missing(keepCols) && !missing(dropCols)) stop("keepCols and dropCols passed to subsetModelList. You must choose one or the other, but not both.")
-
-  #if did not pass either drop or keep, setup useful defaults
-  if (missing(keepCols) && missing(dropCols)) keepCols <- c("Title", "LL", "Parameters", "AIC", "AICC", "BIC", "RMSEA_Estimate")
-
-  #keep only columns specified by keepCols
-  if (!missing(keepCols) && length(keepCols) > 0) {
-    #check to make sure each column exists if keepCols used
-    summaryNames <- names(modelList)
-    for (colName in keepCols) {
-      if (!colName %in% summaryNames) keepCols <- keepCols[-which(keepCols==colName)]
-    }
-
-    if (length(keepCols) == 0) stop("All fields passed as keepCols are missing from data.frame\n  Fields in data.frame are:\n  ", paste(strwrap(paste(summaryNames, collapse=" "), width=80, exdent=4), collapse="\n"))
-    MplusData <- modelList[, keepCols, drop=FALSE]
-  }
-
-  #drop columns specified by dropCols
-  if (!missing(dropCols) && length(dropCols) > 0) {
-    MplusData <- modelList
-    #Process vector of columns to drop
-    for (column in dropCols) {
-      MplusData[[column]] <- NULL
-    }
-
-  }
-
-  #make a list of non-missing columns
-  notMissing <- unlist(lapply(names(MplusData), function(column) {
-            if(!all(is.na(MplusData[[column]]))) return(column)
-          }))
-
-  #handle cases where sortBy is missing
-  if (missing(sortBy)) {
-    if ("AICC" %in% notMissing) sortBy <- "AICC"
-    else if ("AIC" %in% notMissing) sortBy <- "AIC"
-    else if ("BIC" %in% notMissing) sortBy <- "BIC"
-    else if ("Title" %in% notMissing) sortBy <- "Title"
-    else sortBy <- NA_character_
-  }
-
-  if (!sortBy %in% notMissing) stop("sortBy field: ", sortBy, " is not present in the summary data.frame.\n  Check your keepCols and dropCols arguments and the summary data.frame")
-
-  #sort data set correctly and drop columns where all models are missing
-  #need drop=FALSE to retain as data.frame in case only one column returned
-  MplusData <- MplusData[order(MplusData[[sortBy]]), notMissing, drop=FALSE]
-
-  return(MplusData)
-}
-
-#' Display summary table of Mplus model statistics in separate window
-#'
-#' Displays a summary table of model fit statistics extracted using the \code{extractModelSummaries} function.
-#' This function relies on the \code{showData} function from the relimp package, which displays data in a Tk-based window.
-#' By default, the following summary statistics are included: \code{Title, LL, Parameters, AIC, AICC, BIC, RMSEA_Estimate},
-#' but these are customizable using the \code{keepCols} and \code{dropCols} parameters.
-#'
-#' @note You must choose between \code{keepCols} and \code{dropCols} because
-#'   it is not sensible to use these together to include and exclude columns.
-#'   The function will error if you include both parameters.
-#'
-#' @param modelList A list of models (as a \code{data.frame}) returned from the \code{extractModelSummaries} function.
-#' @param keepCols A vector of character strings indicating which columns/variables to display in the summary. Only
-#'   columns included in this list will be displayed (all others excluded). By default, \code{keepCols} is:
-#'   \code{c("Title", "LL", "Parameters", "AIC", "AICC", "BIC", "RMSEA_Estimate")}.
-#'   Example: \code{c("Title", "LL", "AIC", "CFI")}
-#' @param dropCols A vector of character strings indicating which columns/variables to omit from the summary.
-#'   Any column not included in this list will be displayed. By default, \code{dropCols} is \code{NULL}.
-#'   Example: \code{c("InputInstructions", "TLI")}
-#' @param sortBy Optional. Field name (as character string) by which to sort the table.
-#'   Typically an information criterion (e.g., \dQuote{AIC} or \dQuote{BIC}) is used to sort the table. Defaults to \dQuote{AICC}.
-#' @param font Optional. The font to be used to display the summary table. Defaults to Courier 9.
-#'
-#' @return No value is returned by this function. It is solely used to display the summary table in a separate window.
-#' @author Michael Hallquist
-#' @seealso \code{\link{extractModelSummaries}} \code{\link{HTMLSummaryTable}} \code{\link{LatexSummaryTable}}
-#' @export
-#' @keywords interface
-#' @examples
-#' # make me!!!
-showSummaryTable <- function(modelList, keepCols, dropCols, sortBy, font="Courier 9") {
-  if (!suppressWarnings(require(relimp))) {
-    stop("The relimp package is absent. Interactive folder selection cannot function.")
-  }
-
-  MplusData <- subsetModelList(modelList, keepCols, dropCols, sortBy)
-  showData(MplusData, font=font, placement="+30+30", maxwidth=150, maxheight=50, rownumbers=FALSE, title="Mplus Summary Table")
-}
-
-#' Create an HTML file containing a summary table of Mplus model statistics
-#'
-#' Creates an HTML file containing a summary table of model fit statistics extracted using the \code{extractModelSummaries} function.
-#' By default, the following summary statistics are included: \code{Title, LL, Parameters, AIC, AICC, BIC, RMSEA_Estimate},
-#' but these are customizable using the \code{keepCols} and \code{dropCols} parameters.
-#'
-#' @param modelList A list of models (as a \code{data.frame}) returned from the \code{extractModelSummaries} function.
-#' @param filename The name of the HTML file to be created. Can be an absolute or relative path. If \code{filename}
-#'   is a relative path or just the filename, then it is assumed that the file resides in the working
-#'   directory \code{getwd()}. Example: \code{"Mplus Summary.html"}
-#' @param keepCols A vector of character strings indicating which columns/variables to display in the summary.
-#'   Only columns included in this list will be displayed (all others excluded). By default, \code{keepCols}
-#'   is: \code{c("Title", "LL", "Parameters", "AIC", "AICC", "BIC", "RMSEA_Estimate")}. Example: \code{c("Title", "LL", "AIC", "CFI")}
-#' @param dropCols A vector of character strings indicating which columns/variables to omit from the summary.
-#'   Any column not included in this list will be displayed. By default, \code{dropCols} is \code{NULL}.
-#'   Example: \code{c("InputInstructions", "TLI")}
-#' @param sortBy optional. Field name (as character string) by which to sort the table. Typically an information criterion
-#'   (e.g., "AIC" or "BIC") is used to sort the table. Defaults to "AICC".
-#' @param display optional. This parameter specifies whether to display the table in a web
-#'   browser upon creation (\code{TRUE} or \code{FALSE}).
-#' @return No value is returned by this function. It is solely used to create an HTML file containing summary statistics.
-#' @author Michael Hallquist
-#' @note You must choose between \code{keepCols} and \code{dropCols} because it is not sensible to use these
-#'   together to include and exclude columns. The function will error if you include both parameters.
-#' @seealso \code{\link{extractModelSummaries}}, \code{\link{showSummaryTable}}, \code{\link{LatexSummaryTable}}
-#' @export
-#' @importFrom xtable xtable
-#' @keywords interface
-#' @examples
-#' # make me!!!
-HTMLSummaryTable <- function(modelList, filename=file.path(getwd(), "Model Comparison.html"), keepCols, dropCols, sortBy, display=FALSE) {
-  #create HTML table and write to file.
-
-  #ensure that the filename has a .html or .htm at the end
-  if (!length(grep(".*\\.htm[l]*", filename)) > 0) {
-    filename <- paste0(filename, ".html")
-  }
-
-  if (length(grep("[\\/]", filename)) == 0) {
-    #Filename does not contain a path. Therefore, add the working directory
-    filename <- file.path(getwd(), filename)
-  }
-
-  MplusData <- subsetModelList(modelList, keepCols, dropCols, sortBy)
-
-  print(x=xtable(MplusData),
-      type="html",
-      file=filename,
-      include.rownames = FALSE,
-      NA.string = "."
-  )
-
-  if (display) {
-    #load table in browser
-    shell.exec(paste0("file:///", filename))
-  }
-
-}
-
-#' Display summary table of Mplus model statistics in separate window
-#'
-#' Creates a LaTex-formatted summary table of model fit statistics extracted using the \code{extractModelSummaries} function.
-#' The table syntax is returned by the function, which is useful for embedding LaTex tables using Sweave.
-#' By default, the following summary statistics are included: \code{Title, LL, Parameters, AIC, AICC, BIC, RMSEA_Estimate},
-#' but these are customizable using the \code{keepCols} and \code{dropCols} parameters.
-#'
-#' @param modelList A list of models (as a \code{data.frame}) returned from the \code{extractModelSummaries} function.
-#' @param keepCols A vector of character strings indicating which columns/variables to display in the summary. Only columns
-#'   included in this list will be displayed (all others excluded). By default, \code{keepCols}
-#'   is: \code{c("Title", "LL", "Parameters", "AIC", "AICC", "BIC", "RMSEA_Estimate")}.
-#'   Example: \code{c("Title", "LL", "AIC", "CFI")}
-#' @param dropCols A vector of character strings indicating which columns/variables to omit from the summary.
-#'   Any column not included in this list will be displayed. By default, \code{dropCols} is \code{NULL}.
-#'   Example: \code{c("InputInstructions", "TLI")}
-#' @param sortBy optional. Field name (as character string) by which to sort the table.
-#'   Typically an information criterion (e.g., "AIC" or "BIC") is used to sort the table. Defaults to "AICC"
-#' @param label optional. A character string specifying the label for the LaTex table, which can be
-#'   used for referencing the table.
-#' @param caption optional. A character string specifying the caption for the LaTex table.
-#' @return A LaTex-formatted table summarizing the \code{modelList} is returned (created by \code{xtable}).
-#' @author Michael Hallquist
-#' @note You must choose between \code{keepCols} and \code{dropCols} because it is not sensible to use these together
-#'   to include and exclude columns. The function will error if you include both parameters.
-#' @seealso \code{\link{extractModelSummaries}}, \code{\link{HTMLSummaryTable}}, \code{\link{showSummaryTable}}, \code{\link{Sweave}}
-#' @export
-#' @importFrom xtable xtable
-#' @keywords interface
-#' @examples
-#' # make me!!!
-LatexSummaryTable <- function(modelList, keepCols, dropCols, sortBy, label=NULL, caption=NULL) {
-  #return latex table to caller
-
-  MplusData <- subsetModelList(modelList, keepCols, dropCols, sortBy)
-
-  return(xtable(MplusData, label=label, caption=caption))
-}
-
-
 #' Extract residual matrices
 #'
 #' Function that extracts the residual matrices including standardized ones
@@ -1510,6 +1394,7 @@ extractTech1 <- function(outfiletext, filename) {
     targetList[["psi"]] <- matrixExtract(paramSpecSubsections[[g]], "PSI", filename)
     targetList[["gamma.c"]] <- matrixExtract(paramSpecSubsections[[g]], "GAMMA\\(C\\)", filename)
     targetList[["alpha.c"]] <- matrixExtract(paramSpecSubsections[[g]], "ALPHA\\(C\\)", filename)
+    targetList[["new_additional"]] <- matrixExtract(paramSpecSubsections[[g]], "NEW/ADDITIONAL PARAMETERS", filename) 
 
     #latent class indicator part includes subsections for each latent class, such as class-varying thresholds
     if (groupNames[g] == "LATENT.CLASS.INDICATOR.MODEL.PART") {
@@ -1557,6 +1442,7 @@ extractTech1 <- function(outfiletext, filename) {
     targetList[["psi"]] <- matrixExtract(startValSubsections[[g]], "PSI", filename)
     targetList[["gamma.c"]] <- matrixExtract(startValSubsections[[g]], "GAMMA\\(C\\)", filename)
     targetList[["alpha.c"]] <- matrixExtract(startValSubsections[[g]], "ALPHA\\(C\\)", filename)
+    targetList[["new_additional"]] <- matrixExtract(startValSubsections[[g]], "NEW/ADDITIONAL PARAMETERS", filename)
 
     #latent class indicator part includes subsections for each latent class, such as class-varying thresholds
     if (groupNames[g] == "LATENT.CLASS.INDICATOR.MODEL.PART") {
@@ -1949,7 +1835,7 @@ extractFacScoreStats <- function(outfiletext, filename) {
 #' @keywords internal
 #' @examples
 #' # make me!!!
-extractClassCounts <- function(outfiletext, filename) {
+extractClassCounts <- function(outfiletext, filename, summaries) {
 
   ####
   #TODO: Implement class count extraction for multiple categorical latent variable models.
@@ -1982,17 +1868,24 @@ extractClassCounts <- function(outfiletext, filename) {
 
   countlist <- list()
 
-  modelCounts <- getSection("^FINAL CLASS COUNTS AND PROPORTIONS FOR THE LATENT CLASSES$", outfiletext)
+  #Starting in Mplus v7.3 and above, formatting of the class counts appears to have changed...
+  #Capture the alternatives here
+  if (missing(summaries) || is.null(summaries$Mplus.version) || as.numeric(summaries$Mplus.version) < 7.3) {
+    modelCounts <- getSection("^FINAL CLASS COUNTS AND PROPORTIONS FOR THE LATENT CLASSES$", outfiletext)
+    ppCounts <- getSection("^FINAL CLASS COUNTS AND PROPORTIONS FOR THE LATENT CLASS PATTERNS$", outfiletext)
+    mostLikelyCounts <- getSection("^CLASSIFICATION OF INDIVIDUALS BASED ON THEIR MOST LIKELY LATENT CLASS MEMBERSHIP$", outfiletext)
+  } else {
+    modelCounts <- getSection("^FINAL CLASS COUNTS AND PROPORTIONS FOR THE LATENT CLASSES$::^BASED ON THE ESTIMATED MODEL$", outfiletext)
+    ppCounts <- getSection("^FINAL CLASS COUNTS AND PROPORTIONS FOR THE LATENT CLASSES$::^BASED ON ESTIMATED POSTERIOR PROBABILITIES$", outfiletext)
+    mostLikelyCounts <- getSection("^FINAL CLASS COUNTS AND PROPORTIONS FOR THE LATENT CLASSES$::^BASED ON THEIR MOST LIKELY LATENT CLASS MEMBERSHIP$", outfiletext)    
+  }
+
   countlist[["modelEstimated"]] <- getClassCols(modelCounts)
-
-  ppCounts <- getSection("^FINAL CLASS COUNTS AND PROPORTIONS FOR THE LATENT CLASS PATTERNS$", outfiletext)
   countlist[["posteriorProb"]] <- getClassCols(ppCounts)
-
-  mostLikelyCounts <- getSection("^CLASSIFICATION OF INDIVIDUALS BASED ON THEIR MOST LIKELY LATENT CLASS MEMBERSHIP$", outfiletext)
   countlist[["mostLikely"]] <- getClassCols(mostLikelyCounts)
-
+    
   #most likely by posterior probability section
-  mostLikelyProbs <- getSection("^Average Latent Class Probabilities for Most Likely Latent Class Membership \\(Row\\)$", outfiletext)
+  mostLikelyProbs <- getSection("^Average Latent Class Probabilities for Most Likely Latent Class Membership \\((Row|Column)\\)$", outfiletext)
   if (length(mostLikelyProbs) > 1L) { mostLikelyProbs <- mostLikelyProbs[-1L] } #remove line 1: "by Latent Class (Column)"
 
   #Example:
@@ -2013,13 +1906,14 @@ extractClassCounts <- function(outfiletext, filename) {
   countlist[["avgProbs.mostLikely"]] <- unlabeledMatrixExtract(mostLikelyProbs, filename)
 
   #same, but for classification probabilities
-  classificationProbs <- getSection("^Classification Probabilities for the Most Likely Latent Class Membership \\(Row\\)$", outfiletext)
+  #also, starting ~Mplus 7.3, the columns and rows appear to have switched in this and the logit section (hence the Column|Row syntax)
+  classificationProbs <- getSection("^Classification Probabilities for the Most Likely Latent Class Membership \\((Column|Row)\\)$", outfiletext)
   if (length(classificationProbs) > 1L) { classificationProbs <- classificationProbs[-1L] } #remove line 1: "by Latent Class (Column)"
 
   countlist[["classificationProbs.mostLikely"]] <- unlabeledMatrixExtract(classificationProbs, filename)
 
   #same, but for classification probability logits
-  classificationLogitProbs <- getSection("^Logits for the Classification Probabilities for the Most Likely Latent Class Membership \\(Row\\)$", outfiletext)
+  classificationLogitProbs <- getSection("^Logits for the Classification Probabilities for the Most Likely Latent Class Membership \\((Column|Row)\\)$", outfiletext)
   if (length(classificationLogitProbs) > 1L) { classificationLogitProbs <- classificationLogitProbs[-1L] } #remove line 1: "by Latent Class (Column)"
 
   countlist[["logitProbs.mostLikely"]] <- unlabeledMatrixExtract(classificationLogitProbs, filename)
@@ -2157,7 +2051,7 @@ matrixExtract <- function(outfiletext, headerLine, filename) {
           dimnames=list(rowHeaders, colHeaders))
 
       for (r in 1:length(splitData)) {
-        line <- as.numeric(splitData[[r]][-1])
+        line <- mplus_as.numeric(splitData[[r]][-1]) #use mplus_as.numeric to handle D+XX scientific notation in output
         if ((lenDiff <- length(colHeaders) - length(line)) > 0)
           line <- c(line, rep(NA, lenDiff))
         mat[r,] <- line
@@ -2169,11 +2063,18 @@ matrixExtract <- function(outfiletext, headerLine, filename) {
 
     #aggregate sections
     aggMatCols <- do.call("c", lapply(blockList, colnames))
-    aggMatRows <- rownames(blockList[[1]])
+    aggMatRows <- rownames(blockList[[1]]) #row names are shared across blocks in Mplus output
     aggMat <- matrix(NA, nrow=length(aggMatRows), ncol=length(aggMatCols), dimnames=list(aggMatRows, aggMatCols))
 
+    #Unfortunately, due to Mplus 8-character printing limits for matrix sections, row/col names are not guaranteed to be unique.
+    #This causes problems for using name-based matching to fill the matrix.
+    #We know that blocks are printed from left-to-right by column (i.e., the block 1 has the first X columns, block 2 has the next Y columns).
+    #Thus, we should be able to use a counter and fill columns numerically. This does not get around a problem of non-unique row names since we
+    #can't easily discern the rows represented in a block based on row numbering alone. Thus, this is an incomplete solution for now (Aug2015 MH)
+    colCounter <- 1
     for (l in blockList) {
-      aggMat[rownames(l), colnames(l)] <- l #fill in just the block of the aggregate matrix represented in l
+      aggMat[rownames(l), colCounter:(colCounter + ncol(l) - 1)] <- l #fill in just the block of the aggregate matrix represented in l
+      colCounter <- colCounter + ncol(l)
     }
   }
   else {

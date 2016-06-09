@@ -74,10 +74,7 @@ getSavedata_Fileinfo <- function(outfile) {
 #' @examples
 #' # make me!
 #' @keywords internal
-l_getSavedata_Fileinfo <- function(outfile, outfiletext) {
-
-  #require(gsubfn)
-  #require(plyr)
+l_getSavedata_Fileinfo <- function(outfile, outfiletext, summaries) {
 
   sectionStarts <- c("Estimates", #estimates
       "Estimated Covariance Matrix for the Parameter Estimates", #tech3
@@ -210,9 +207,12 @@ l_getSavedata_Fileinfo <- function(outfile, outfiletext) {
       #bayesVarNames <- gsub("\\s+", "\\.", sapply(paramOrderSection, "[", 2), perl=TRUE)
 
       #15Mar2012: Workaround for bug: means for categorical latent variables are in output file listing
-      #but these are not actually present in bparameters. Filter out
-      paramOrderSection <- paramOrderSection[!grepl("Parameter\\s+\\d+, \\[ [^#]#\\d+ \\]", paramOrderSection, perl=TRUE)]
-
+      #but these are not actually present in bparameters. Filter these out.
+      #12Oct2015: This appears to have been fixed in Mplus 7 and beyond, so check version if available.    
+      if (missing(summaries) || is.null(summaries$Mplus.version) || as.numeric(summaries$Mplus.version) < 7) {
+        paramOrderSection <- paramOrderSection[!grepl("Parameter\\s+\\d+, \\[ [^#]#\\d+ \\]", paramOrderSection, perl=TRUE)]
+      }
+      
       bayesVarNames <- gsub("\\s*,\\s*", "_", paramOrderSection, perl=TRUE)
       bayesVarNames <- gsub("\\[", "MEAN", bayesVarNames, perl=TRUE)
       bayesVarNames <- gsub("\\s*\\]\\s*", "", bayesVarNames, perl=TRUE)
@@ -391,7 +391,6 @@ getSavedata_Bparams <- function(outfile, discardBurnin=TRUE) {
 #' @import coda
 #' @keywords internal
 l_getSavedata_Bparams <- function(outfile, outfiletext, fileInfo, discardBurnin=TRUE) {
-  #require(coda)
 
   #missing fileInfo
   if (is.null(fileInfo)) return(NULL)
@@ -466,9 +465,10 @@ l_getSavedata_Bparams <- function(outfile, outfiletext, fileInfo, discardBurnin=
 #' @param fileName The name of the file
 #' @param varNames The names of the variables to extract, comes from the fileInfo
 #' @param varWidths The widths of the variables to extract, comes from the fileInfo
-#' @param input
+#' @param input list of parsed Mplus input section extracted upstream in readModels
 #' @return A data frame of the extracted data.
 #' @keywords internal
+#' @importFrom utils read.table read.fwf
 l_getSavedata_readRawFile <- function(outfile, outfiletext, format="fixed", fileName, varNames, varWidths, input) {
   outfileDirectory <- splitFilePath(outfile)$directory
 
