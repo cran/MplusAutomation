@@ -21,6 +21,8 @@ extractParameters_1chunk <- function(filename, thisChunk, columnNames, sectionNa
     splitRows <- strsplit(thisChunk, "\\s+")
     headerRows <- sapply(splitRows, function(x) {
           if (identical(x, c("Observed")) ||
+              identical(x, c("Latent")) ||
+              identical(x, c("Observed", "Scale")) ||
               identical(x, c("Observed", "Two-Tailed", "Scale")) || 
               identical(x, c("Latent", "Two-Tailed", "Scale")) ||
               identical(x, c("Observed", "Two-Tailed", "Residual")) || 
@@ -29,25 +31,24 @@ extractParameters_1chunk <- function(filename, thisChunk, columnNames, sectionNa
               identical(x, c("Latent", "Two-Tailed")) ||
               identical(x, c("Observed", "Residual")) ||
               identical(x, c("Latent", "Residual")) ||
-              identical(x, c("Observed")) ||
-              identical(x, c("Latent")) ||
               identical(x, c("Variable", "Estimate", "S.E.", "Est./S.E.", "P-Value", "Factors")) ||
               identical(x, c("Variable", "Estimate", "S.E.", "Est./S.E.", "P-Value", "Variance")) ||
               identical(x, c("Variable", "Estimate", "S.E.", "Est./S.E.", "P-Value")) ||
               identical(x, c("Variable", "Estimate")) ||
+              identical(x, c("Variable", "Estimate", "Factors")) ||
               identical(x, c("Variable", "Estimate", "Variance")) ||
               identical(x, c("Posterior", "One-Tailed", "95%", "C.I.")) ||
               identical(x, c("Variable", "Estimate", "S.D.", "P-Value", "Lower", "2.5%", "Upper", "2.5%"))
           ) { TRUE } else { FALSE }
         })
-     
+
     thisChunk <- thisChunk[!headerRows]
       
     convertMatches <- data.frame(startline=1, keyword="R-SQUARE", varname=NA_character_, operator=NA_character_, endline=length(thisChunk))
   } else {
     #okay to match beginning and end of line because strip.white used in scan
-    matches <- gregexpr("^\\s*((Means|Thresholds|Intercepts|Variances|Item Difficulties|Residual Variances|Base Hazard Parameters|New/Additional Parameters|Scales|Dispersion)|([\\w_\\d+\\.#]+\\s+(BY|WITH|ON|\\|)))\\s*$", thisChunk, perl=TRUE)
-    
+    matches <- gregexpr("^\\s*((Means|Thresholds|Intercepts|Variances|Item Difficulties|Item Locations|Item Categories|Item Guessing|Upper Asymptote|Residual Variances|Base Hazard Parameters|New/Additional Parameters|Scales|Dispersion|Steps)|([\\w_\\d+\\.#\\&]+\\s+(BY|WITH|ON|\\|))|([\\w_\\d+\\.#\\&]+\\s*\\|\\s*[\\w_\\d+\\.#\\&]+\\s*(BY|WITH|ON)))\\s*$", thisChunk, perl=TRUE)
+
     #more readable (than above) using ldply from plyr
     convertMatches <- ldply(matches, function(row) data.frame(start=row, end=row+attr(row, "match.length")-1))
     
@@ -67,18 +68,18 @@ extractParameters_1chunk <- function(filename, thisChunk, columnNames, sectionNa
     convertMatches <- ddply(convertMatches, "startline", function(row) {
           #pull the matching keyword based on the start/end attributes from gregexpr
           match <- substr(thisChunk[row$startline], row$start, row$end)
-          
+
           #check for keyword
-          if (match %in% c("Means", "Thresholds", "Intercepts", "Variances", "Residual Variances", "Base Hazard Parameters", "New/Additional Parameters", "Scales", "Item Difficulties", "Dispersion")) {
-            return(data.frame(startline=row$startline, keyword=make.names(match), varname=NA_character_, operator=NA_character_))
-          }
-          else if (length(variable <- strapply(match, "^\\s*([\\w_\\d+\\.#]+)\\s+(BY|WITH|ON|\\|)\\s*$", c, perl=TRUE)[[1]]) > 0) {
-            return(data.frame(startline=row$startline, keyword=NA_character_, varname=variable[1], operator=variable[2]))
-          }
-          else stop("failure to match keyword: ", match, "\n  ", filename)
+          if (match %in% c("Means", "Thresholds", "Intercepts", "Variances", "Residual Variances", "Base Hazard Parameters", "New/Additional Parameters", 
+              "Scales", "Item Difficulties", "Item Locations", "Item Categories", "Item Guessing", "Upper Asymptote", "Dispersion", "Steps")) {
+            return(data.frame(startline=row$startline, keyword=make.names(match), varname=NA_character_, operator=NA_character_, stringsAsFactors=FALSE))
+          } else if (length(variable <- strapply(match, "^\\s*([\\w_\\d+\\.#\\&]+)\\s+(BY|WITH|ON|\\|)\\s*$", c, perl=TRUE)[[1]]) > 0) {
+            return(data.frame(startline=row$startline, keyword=NA_character_, varname=variable[1], operator=variable[2], stringsAsFactors=FALSE))
+          } else if (length(variable <- strapply(match, "^\\s*([\\w_\\d+\\.#\\&]+)\\s*\\|\\s*([\\w_\\d+\\.#\\&]+)\\s*(BY|WITH|ON)\\s*$", c, perl=TRUE)[[1]]) > 0) {
+            return(data.frame(startline=row$startline, keyword=NA_character_, slope=variable[1], varname=variable[2], operator=variable[3], stringsAsFactors=FALSE))
+          } else stop("failure to match keyword: ", match, "\n  ", filename)
         })
   }
-
   
   comboFrame <- c()
 
@@ -96,6 +97,12 @@ extractParameters_1chunk <- function(filename, thisChunk, columnNames, sectionNa
     #need +1 to eliminate header row from params
     paramsToParse <- thisChunk[(convertMatches[i, "startline"]+1):convertMatches[i, "endline"]]
 
+    #Very rarely, a section header is printed, but no parameters follow. In such cases, skip to the next match
+    #example:
+    #  I1       |
+    #
+    if (all(paramsToParse=="")) { next }
+    
     #should result in a short list of params to parse (that belong to a given header i)
     #Example:
     #"U1                 0.557      0.036     15.470      0.000"
@@ -103,10 +110,25 @@ extractParameters_1chunk <- function(filename, thisChunk, columnNames, sectionNa
     #"U3                 0.660      0.038     17.473      0.000"
     #"U4                 0.656      0.037     17.585      0.000"
 
+    if (!is.na(convertMatches[i,"keyword"]) && convertMatches[i,"keyword"] == "Item.Categories") {      
+      #handle item categories output from IRT (e.g. ex5.5pcm.out), where the output section looks like this:
+      # Item Categories
+      #  U1
+      #    Category 1         0.000      0.000      0.000      1.000
+      #    Category 2        -0.247      0.045     -5.534      0.000
+      #    Category 3         0.699      0.052     13.325      0.000
+      #    Category 4        -0.743      0.057    -12.938      0.000
+      #    Category 5         0.291      0.052      5.551      0.000    
+      paramsToParse <- parseCatOutput(paramsToParse) #reformat into U1.Cat.1 etc.
+    }
+  
     #define the var title outside of the chunk processing because it will apply to all rows
-    if (is.na(convertMatches[i,]$keyword)) varTitle <- paste(convertMatches[i,"varname"], ".", convertMatches[i,"operator"], sep="")
-    else varTitle <- as.character(convertMatches[i,"keyword"])
-
+    if (is.na(convertMatches[i,]$keyword)) {
+      slo <- convertMatches[i,"slope"] #support Mplus v8 output style S1 | Y1 ON Y1&1 (e.g., ex9.32.out) 
+      prefix <- ifelse(is.null(slo) || is.na(slo), "", paste(slo, "|", sep=""))
+      varTitle <- paste(prefix, convertMatches[i,"varname"], ".", convertMatches[i,"operator"], sep="")
+    } else { varTitle <- as.character(convertMatches[i,"keyword"]) }
+   
     splitParams <- strsplit(paramsToParse, "\\s+", perl=TRUE)
 
     #for the Significance column in 7-column Mplus output, it may be missing for a chunk (all n.s./not tested), or for a given row.
@@ -131,8 +153,8 @@ extractParameters_1chunk <- function(filename, thisChunk, columnNames, sectionNa
           })
     }
     
-    #similar problem for 3-column R-SQUARE output with missing residual variances
-    if (length(columnNames) == 3L && columnNames[3L] == "resid_var") {
+    #similar problem for 3-column R-SQUARE output with missing residual variances or scale factors
+    if (length(columnNames) == 3L && columnNames[3L] %in% c("resid_var", "scale_f")) {
       splitParams <- lapply(splitParams, function(col) {
             lcol <- length(col)
             if (lcol == 2L) { col[3L] <- "NA_real_" } #NA-fill variables without a residual variance
@@ -229,10 +251,10 @@ extractParameters_1section <- function(filename, modelSection, sectionName) {
   #  5) class proportions (only known class output?)
 
   allSectionParameters <- c() #will hold extracted params for all sections
-
-  betweenWithinMatches <- grep("^\\s*(Between (?:\\s*\\w+\\s+)*Level|Within (?:\\s*\\w+\\s+)*Level)\\s*$", modelSection, ignore.case=TRUE, perl=TRUE)
-  latentClassMatches <- grep("^\\s*(Latent )*Class (Pattern )*(\\d+\\s*)+(\\(\\s*\\d+\\s*\\))*$", modelSection, ignore.case=TRUE, perl=TRUE)
-  multipleGroupMatches <- grep("^\\s*Group \\w+\\s*$", modelSection, ignore.case=TRUE, perl=TRUE)
+  betweenWithinMatches <- grep("^\\s*(Between (?:\\s*\\w+\\s+)*Level|Within (?:\\s*\\w+\\s+)*Level|Within-Level (Standardized Estimates|R-Square) Averaged (Over|Across) Clusters)\\s*$", modelSection, ignore.case=TRUE, perl=TRUE)
+  #latent class patterns can be "1 1 3 1" or something like "C#1" (see ex8.15.out for a complicated example)
+  latentClassMatches <- grep("^\\s*(Latent )*Class (Pattern )*([\\d\\w#_]+\\s*)+(\\(\\s*\\d+\\s*\\))*$", modelSection, ignore.case=TRUE, perl=TRUE)
+  multipleGroupMatches <- grep("^\\s*Group \\w+(?:\\s+\\(\\d+\\))*\\s*$", modelSection, ignore.case=TRUE, perl=TRUE) #support Mplus v8 syntax Group G1 (0) with parentheses of numeric value
   catLatentMatches <- grep("^\\s*Categorical Latent Variables\\s*$", modelSection, ignore.case=TRUE)
   classPropMatches <- grep("^\\s*Class Proportions\\s*$", modelSection, ignore.case=TRUE)
 
@@ -246,8 +268,10 @@ extractParameters_1section <- function(filename, modelSection, sectionName) {
 
     matchIndex <- 1
     for (match in topLevelMatches) {
-      if (match %in% betweenWithinMatches) bwWi <- sub("\\s+Level\\s*$", "", modelSection[match], perl=TRUE)
-      else if (match %in% latentClassMatches) {
+      if (grepl("\\s*Within-Level Standardized Estimates Averaged Over Clusters\\s*", modelSection[match], perl=TRUE)) {
+        bwWi <- "Within.Std.Averaged.Over.Clusters"
+      } else if (match %in% betweenWithinMatches) { bwWi <- sub("\\s+Level\\s*$", "", modelSection[match], perl=TRUE)
+      } else if (match %in% latentClassMatches) {
         if ((pos <- regexpr("Pattern", modelSection[match], ignore.case=TRUE)) > 0) {
           #need to pull out and concatenate all numerical values following pattern
           postPattern <- trimSpace(substr(modelSection[match], pos + attr(pos, "match.length"), nchar(modelSection[match])))
@@ -255,8 +279,7 @@ extractParameters_1section <- function(filename, modelSection, sectionName) {
           lcNum <- gsub("\\s+", "\\.", postPattern, perl=TRUE)
         }
         else lcNum <- sub("^\\s*(?:Latent )*Class\\s+(\\d+)\\s*(\\(\\s*\\d+\\s*\\))*$", "\\1", modelSection[match], perl=TRUE)
-      }
-      else if (match %in% multipleGroupMatches) groupName <- sub("^\\s*Group (\\w+)\\s*$", "\\1", modelSection[match], perl=TRUE)
+      } else if (match %in% multipleGroupMatches) groupName <- sub("^\\s*Group (\\w+)(?:\\s+\\(\\d+\\))*\\s*$", "\\1", modelSection[match], perl=TRUE)
       else if (match %in% catLatentMatches) {
         #the categorical latent variables section is truly "top level"
         #that is, it starts over in terms of bw/wi and latent classes
@@ -288,8 +311,7 @@ extractParameters_1section <- function(filename, modelSection, sectionName) {
         #subtract one to exclude the subsequent header row)
         thisChunk <- modelSection[(match+1):(topLevelMatches[matchIndex+1]-1)]
         chunkToParse <- TRUE
-      }
-      else if (matchIndex == length(topLevelMatches) && match+1 <= length(modelSection)) {
+      } else if (matchIndex == length(topLevelMatches) && match+1 <= length(modelSection)) {
         #also assume that the text following the last topLevelMatch is also to be parsed
         #second clause ensures that there is some chunk below the final header.
         #this handles issues where a blank section terminates the results section, such as multilevel w/ no between
@@ -297,9 +319,34 @@ extractParameters_1section <- function(filename, modelSection, sectionName) {
         chunkToParse <- TRUE
       }
 
-      if (chunkToParse == TRUE) {
+      if (chunkToParse == TRUE && !all(thisChunk=="")) { #omit completely blank chunks (v8 ex9.32.out)
         parsedChunk <- extractParameters_1chunk(filename, thisChunk, columnNames, sectionName)
 
+        #WORKAROUND: For confidence intervals in multilevel mixtures, the Categorical Latent Variables section does not
+        #follow the same formatting guidelines. Specifically, it does not print "Within Level" after "Categorical Latent Variables".
+        #As a result, the CI parser blows up because bwWi will be NULL. The inconsistent section is in my assessment always the within level
+        #See, for example CINTERVAL output for UG ex10.1. The first section pertains to the within level (e.g., -1.302 is the param estimate in MODEL RESULTS).
+        #
+        #  Categorical Latent Variables
+        #  
+        #  C#1      ON
+        #  X1              -1.979      -1.817      -1.734      -1.302      -0.869      -0.787      -0.625
+        #  
+        #  Intercepts
+        #  C#1             -0.692      -0.490      -0.386       0.153       0.692       0.795       0.997
+        #  
+        #  Between Level
+        #  
+        #  C#1      ON
+        #  W               -1.989      -1.785      -1.680      -1.134      -0.588      -0.484      -0.280
+        #  
+        #  Residual Variances
+        #  C#1             -0.325      -0.244      -0.203       0.013       0.230       0.271       0.352
+
+        if (sectionName == "ci.unstandardized" && lcNum=="Categorical.Latent.Variables" && is.null(bwWi) && length(betweenWithinMatches) > 0L) {
+          bwWi <- "Within"
+        }
+  
         #only append if there are some rows
         if (!is.null(parsedChunk) && nrow(parsedChunk) > 0) {
           parsedChunk$LatentClass <- lcNum
@@ -312,8 +359,9 @@ extractParameters_1section <- function(filename, modelSection, sectionName) {
       matchIndex <- matchIndex + 1
     }
 
+  } else {
+    allSectionParameters <- extractParameters_1chunk(filename, modelSection, columnNames, sectionName) #just one model section
   }
-  else allSectionParameters <- extractParameters_1chunk(filename, modelSection, columnNames, sectionName) #just one model section
 
   #if any std variable is one of the returned columns, we are dealing with an old-style combined results section (i.e.,
   #standardized results are not divided into their own sections, as with newer output).
@@ -386,12 +434,26 @@ extractParameters_1file <- function(outfiletext, filename, resultType) {
 
     return(target)
   }
-
+  
   allSections <- list() #holds parameters for all identified sections
-  unstandardizedSection <- getSection("^MODEL RESULTS$", outfiletext)
-  if (!is.null(unstandardizedSection)) {
-    allSections <- appendListElements(allSections, extractParameters_1section(filename, unstandardizedSection, "unstandardized"))
+  if (length(multisectionMatches <- grep("^\\s*MODEL RESULTS FOR .*", outfiletext, perl=TRUE, value=TRUE)) > 0L) {
+    sectionNames <- make.names(sub("^\\s*MODEL RESULTS FOR\\s+(?:THE)*\\s*([\\w\\.]+)", "\\1", multisectionMatches, perl=TRUE))
+    #mercifully, for now, these invariance testing outputs only appear to generate unstandardized parameters (otherwise we'd need to wrap this whole function and pass in a suffix parameter)
+    unstandardizedList <- list()
+    for (s in 1:length(sectionNames)) {
+      unstandardizedSection <- getSection(multisectionMatches[s], outfiletext)
+      if (!is.null(unstandardizedSection)) {
+        unstandardizedList[[ sectionNames[s] ]] <- extractParameters_1section(filename, unstandardizedSection, "unstandardized")
+      }      
+    }
+    allSections$unstandardized <- unstandardizedList
+  } else {
+    unstandardizedSection <- getSection("^MODEL RESULTS$", outfiletext)
+    if (!is.null(unstandardizedSection)) {
+      allSections <- appendListElements(allSections, extractParameters_1section(filename, unstandardizedSection, "unstandardized"))
+    }      
   }
+  
 
   standardizedSection <- getSection("^STANDARDIZED MODEL RESULTS$", outfiletext)
 
@@ -431,15 +493,57 @@ extractParameters_1file <- function(outfiletext, filename, resultType) {
 
   }
 
+  #Mplus v8 within-level standardized model results by cluster (ex9.32.out)
+  wiclusterSections <- grep("WITHIN-LEVEL STANDARDIZED MODEL RESULTS FOR CLUSTER \\d+", outfiletext, perl=TRUE)
+  if (length(wiclusterSections) > 0L) {
+    wiclusterSection <- lapply(wiclusterSections, function(w) {
+          cs <- getSection(trimSpace(outfiletext[w]), outfiletext)
+          clist <- list()
+          
+          stdYXSection <- getSection_Blanklines("^STDYX Standardization$", cs)
+          if (!is.null(stdYXSection)) { clist <- appendListElements(clist, extractParameters_1section(filename, stdYXSection, "stdyx.standardized")) }
+          
+          stdYSection <- getSection_Blanklines("^STDY Standardization$", cs)
+          if (!is.null(stdYSection)) { clist <- appendListElements(clist, extractParameters_1section(filename, stdYSection, "stdy.standardized")) }
+          
+          stdSection <- getSection_Blanklines("^STD Standardization$", cs)
+          if (!is.null(stdSection)) { clist <- appendListElements(clist, extractParameters_1section(filename, stdSection, "std.standardized")) }
+          
+          r2Section <- getSection_Blanklines("^WITHIN-LEVEL R-SQUARE FOR CLUSTER \\d+$", cs)
+          if (!is.null(r2Section)) { clist <- appendListElements(clist, extractParameters_1section(filename, r2Section, "r2")) }
+          
+          #add cluster number to each list
+          clist <- lapply(clist, function(el) { 
+                el$cluster <- as.numeric(sub("\\s*WITHIN-LEVEL STANDARDIZED MODEL RESULTS FOR CLUSTER (\\d+)\\s*", "\\1", outfiletext[w], perl=TRUE))
+                return(el)
+              })
+          
+          return(clist)          
+        })
+    
+    #glue together each subelement into its own aggregated list
+    wiclusterResults <- list()
+    wiclusterResults$stdyx.standardized <- do.call(rbind, lapply(wiclusterSection, "[[", "stdyx.standardized"))
+    wiclusterResults$stdy.standardized <- do.call(rbind, lapply(wiclusterSection, "[[", "stdy.standardized"))
+    wiclusterResults$std.standardized <- do.call(rbind, lapply(wiclusterSection, "[[", "std.standardized"))
+    wiclusterResults$r2 <- do.call(rbind, lapply(wiclusterSection, "[[", "r2"))
+    
+    allSections <- appendListElements(allSections, list(wilevel.standardized=wiclusterResults)) 
+  }
+  
   #two-parameter IRT output
-  irtSection <- getSection("^IRT PARAMETERIZATION IN TWO-PARAMETER (PROBIT|LOGISTIC) METRIC$", outfiletext)
+  irtSection <- getSection("^IRT PARAMETERIZATION( IN TWO-PARAMETER (PROBIT|LOGISTIC) METRIC)*$", outfiletext)
   if (!is.null(irtSection)) {
-    #parse what the logit or probit is
-    probitLogit <- tolower(sub("^\\s*where the (probit|logit) is.*$", "\\1", irtSection[1L], ignore.case=TRUE, perl=TRUE))
-    def <- tolower(sub("^\\s*where the (?:probit|logit) is\\s+(.*)$", "\\1", irtSection[1L], ignore.case=TRUE, perl=TRUE))
-    irtSection <- irtSection[2:length(irtSection)] #drop line "WHERE THE LOGIT IS 1.7*DISCRIMINATION*(THETA - DIFFICULTY)"
+    hasprobitlogit <- FALSE
+    if (grepl("where the (probit|logit)", irtSection[1L], ignore.case=TRUE, perl=TRUE)) {
+      #parse what the logit or probit is
+      hasprobitlogit <- TRUE
+      probitLogit <- tolower(sub("^\\s*where the (probit|logit) is.*$", "\\1", irtSection[1L], ignore.case=TRUE, perl=TRUE))
+      def <- tolower(sub("^\\s*where the (?:probit|logit) is\\s+(.*)$", "\\1", irtSection[1L], ignore.case=TRUE, perl=TRUE))
+      irtSection <- irtSection[2:length(irtSection)] #drop line "WHERE THE LOGIT IS 1.7*DISCRIMINATION*(THETA - DIFFICULTY)"
+    }
     irtParsed <- extractParameters_1section(filename, irtSection, "irt.parameterization")
-    attr(irtParsed[["irt.parameterization"]], probitLogit) <- def #add probit/logit definition as attribute
+    if (hasprobitlogit) { attr(irtParsed[["irt.parameterization"]], probitLogit) <- def } #add probit/logit definition as attribute
     allSections <- appendListElements(allSections, irtParsed)
   }
 
@@ -473,7 +577,8 @@ extractParameters_1file <- function(outfiletext, filename, resultType) {
       "irt.parameterization", "probability.scale",
       "stdyx.standardized", "ci.stdyx.standardized",
       "stdy.standardized", "ci.stdy.standardized",
-      "std.standardized", "ci.std.standardized")
+      "std.standardized", "ci.std.standardized",
+      "wilevel.standardized")
   listOrder <- listOrder[listOrder %in% names(allSections)]
 
 
@@ -593,7 +698,8 @@ extractParameters_1file <- function(outfiletext, filename, resultType) {
 #' 	"C:/Program Files/Mplus/Mplus Examples/User's Guide Examples/ex3.14.out")
 #' }
 extractModelParameters <- function(target=getwd(), recursive=FALSE, filefilter, dropDimensions=FALSE, resultType) {
-
+  message("This function is deprecated and will be removed from future versions of MplusAutomation. Please use readModels() instead.")
+  
   #function tree (top to bottom):
   #extractModelParameters: loop over one or more output files
   #extractParameters_1file: extract model parameters for all sections (unstandardized, stdyx, stdy, std in a single file
@@ -638,4 +744,103 @@ extractModelParameters <- function(target=getwd(), recursive=FALSE, filefilter, 
   }
 
   return(allFiles)
+}
+
+extractIndirect <- function(outfiletext, curfile) {
+  indirectSection <- getSection("^TOTAL, TOTAL INDIRECT, SPECIFIC INDIRECT, AND DIRECT EFFECTS$", outfiletext)
+  if (is.null(indirectSection)) return(list()) #no indirect output
+  
+  effectHeaders <- grep("^Effects from [A-z_0-9]+ to [A-z_0-9]+$", indirectSection, ignore.case=TRUE, perl=TRUE)
+  columnNames <- detectColumnNames(curfile, trimSpace(indirectSection[1:50]), "model_results") #assume that column headers are somewhere in the first 50 lines
+  columnNames[1] <- "outcome" #rename param -> outcome for clarity
+  
+  indirectOutput <- list()
+  for (e in 1:length(effectHeaders)) {
+    elist <- list()
+    elist$pred <- sub("^Effects from ([A-z_0-9]+) to [A-z_0-9]+$", "\\1", indirectSection[effectHeaders[e]], ignore.case=TRUE, perl=TRUE)
+    elist$outcome <- sub("^Effects from [A-z_0-9]+ to ([A-z_0-9]+)$", "\\1", indirectSection[effectHeaders[e]], ignore.case=TRUE, perl=TRUE)
+    
+    end <- ifelse (e < length(effectHeaders), effectHeaders[e+1]-1, length(indirectSection)) 
+    esection <- indirectSection[(effectHeaders[e]+1):end]
+    
+    #parse total, total indirect, specific indirect, and direct
+    totalLine <- trimSpace(grep("Total\\s+[\\-0-9\\.]+.*$", esection, ignore.case=TRUE, perl=TRUE, value=TRUE))
+    if (length(totalLine) > 0L) {
+      totalLine <- as.list(strsplit(totalLine, "\\s+", perl=TRUE)[[1]])
+      names(totalLine) <- columnNames; totalLine$summary <- "Total"; totalLine$outcome <- NULL
+    }
+    
+    totalIndirectLine <- trimSpace(grep("(Indirect|(Total|Sum of) indirect)\\s+[\\-0-9\\.]+.*$", esection, ignore.case=TRUE, perl=TRUE, value=TRUE))
+    if (length(totalIndirectLine) > 0L) {
+      totalIndirectLine <- as.list(strsplit(totalIndirectLine, "\\s+", perl=TRUE)[[1]])
+      if (paste(unlist(totalIndirectLine[1:3]), collapse=" ") == "Sum of indirect") { #mplus v6 output? Not sure what generates sum versus total
+        totalIndirectLine <- totalIndirectLine[-1:-3]
+        hname <- "Sum of indirect"
+      } else if (paste(unlist(totalIndirectLine[1:2]), collapse=" ") == "Total indirect") {
+        totalIndirectLine <- totalIndirectLine[-1:-2]
+        hname <- "Total indirect"
+      } else if (unlist(totalIndirectLine[1]) == "Indirect") {
+        totalIndirectLine <- totalIndirectLine[-1]
+        hname <- "Indirect"
+      } else { stop("Unable to parse header from total indirect line: ", totalIndirectLine)}
+      names(totalIndirectLine) <- columnNames[-1]; #don't include "outcome" from columnNames since this is added en masse to summaries below
+      totalIndirectLine$summary <- hname #relabel according to Mplus output
+    }
+    
+    directSection <- strsplit(trimSpace(getMultilineSection("Direct", esection, curfile)), "\\s+")
+    useful <- which(sapply(directSection, length) > 1L)
+    if (length(useful) == 1L) {
+      direct <- as.list(directSection[[useful]])
+      names(direct) <- columnNames
+      direct$summary <- "Direct"; direct$outcome <- NULL
+    } else {
+      direct <- list()
+    }
+
+    elist$summaries <- data.frame(pred=elist$pred, outcome=elist$outcome, rbind(totalLine, totalIndirectLine, direct), row.names=NULL)
+    
+    #reorder columns to put pred, outcome, summary first. Use columnNames vector without "outcome" to place remainder in order
+    elist$summaries <- elist$summaries[,c("pred", "outcome", "summary", columnNames[-1])]
+    
+    #use white space to demarcate ending of specific indirect subsection
+    specSection <- trimSpace(getMultilineSection("Specific indirect", esection, curfile))
+    blanks <- which(specSection=="")
+    if (length(blanks) > 0L) {
+      thisEffect <- NULL
+      
+      for (i in 1:length(blanks)) {
+        if (i < length(blanks)) {
+          startLine <- blanks[i]+1
+          endLine <- blanks[i+1]-1
+          if (startLine >= endLine) { next } #occurs with consecutive blanks -> skip out
+          toparse <- specSection[startLine:endLine] 
+        } else { 
+          if (blanks[i]+1 < length(specSection)) { 
+            toparse <- specSection[(blanks[i]+1):length(specSection)]
+          } else { next } #nothing to parse, just a trailing blank
+        }
+        #if (length(toparse) < 2L) { next } #double blank line problem
+        source <- toparse[1] #first variable is the "source" (i.e., the variable furthest upstream) (X IND Y)
+        outcome <- strsplit(toparse[length(toparse)], "\\s+")[[1]] #this should always be the outcome and should have the statistics on it
+        names(outcome) <- columnNames
+        outcome <- data.frame(as.list(outcome))
+        intervening <- toparse[2:(length(toparse)-1)]
+        thisEffect <- rbind(thisEffect, data.frame(pred=source, intervening = paste(intervening, collapse="."), outcome))
+      }
+      elist$specific <- thisEffect
+    }
+    indirectOutput[[e]] <- elist
+  }
+  
+  #name list elements according to 
+  names(indirectOutput) <- sapply(indirectOutput, function(el) { paste(el$pred, el$outcome, sep=".") })
+  
+  #change format to return two data.frames, one with all summaries, the other with all specific
+  summarydf <- do.call(rbind, lapply(indirectOutput, function(el) { el$summaries }))
+  specificdf <- do.call(rbind, lapply(indirectOutput, function(el) { el$specific }))
+  row.names(summarydf) <- NULL; row.names(specificdf) <- NULL 
+  toreturn <- list(overall=summarydf, specific=specificdf)
+  class(toreturn) <- "mplus.indirect"
+
+  return(toreturn)
 }

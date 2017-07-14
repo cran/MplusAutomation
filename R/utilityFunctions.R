@@ -173,6 +173,19 @@ testBParamCompoundConstraint <- function(bparams, test) {
   print(proportions)
 }
 
+#' Friendly Regular Expression
+#'
+#' Creates data frame documenting the start and end of all tags.
+#'
+#' @param pattern The pattern to search for
+#' @param charvector Character vector
+#' @param perl A logical whether or not to use perl based
+#'   regular expressions.  Defaults to \code{TRUE}.
+#' @return A \code{data.frame}
+#' @author Michael Hallquist
+#' @keywords internal
+#' @examples
+#' ## make me
 friendlyGregexpr <- function(pattern, charvector, perl=TRUE) {
   #require(plyr)
   #now create data frame documenting the start and end of all tags
@@ -272,7 +285,16 @@ getSection_Blanklines <- function(sectionHeader, outfiletext) {
 #IRT PARAMETERIZATION IN TWO-PARAMETER LOGISTIC (or PROBIT) METRIC
 #LOGISTIC REGRESSION ODDS RATIO RESULTS
 
-
+#' Get an Output Section
+#'
+#' @param sectionHeader Header section
+#' @param outfiletext Output file text
+#' @param headers Can pass custom headers but defaults to a standard set.
+#' @param omit TODO.
+#' @return Section
+#' @keywords internal
+#' @examples
+#' # make me!!!
 getSection <- function(sectionHeader, outfiletext, headers="standard", omit=NULL) {
   #encode the top-level major headers here, but allow for custom headers to be passed in
   #omit allows for one or more strings from headers not to be considered
@@ -282,10 +304,15 @@ getSection <- function(sectionHeader, outfiletext, headers="standard", omit=NULL
         "SUMMARY OF MISSING DATA PATTERNS FOR THE FIRST REPLICATION",
         "SUMMARY OF MISSING DATA PATTERNS",
         "COVARIANCE COVERAGE OF DATA FOR THE FIRST REPLICATION",
+        "COVARIANCE COVERAGE OF DATA", "UNIVARIATE SAMPLE STATISTICS",
+        "THE MODEL ESTIMATION TERMINATED NORMALLY",
         "SAMPLE STATISTICS", "SAMPLE STATISTICS FOR THE FIRST REPLICATION",
+        "RESULTS FOR BASIC ANALYSIS",
         "CROSSTABS FOR CATEGORICAL VARIABLES", "UNIVARIATE PROPORTIONS AND COUNTS FOR CATEGORICAL VARIABLES",
+        "SUMMARY OF CENSORED LIMITS", "COUNT PROPORTION OF ZERO, MINIMUM AND MAXIMUM VALUES",
         "RANDOM STARTS RESULTS RANKED FROM THE BEST TO THE WORST LOGLIKELIHOOD VALUES",
-        "TESTS OF MODEL FIT", "MODEL FIT INFORMATION", "CLASSIFICATION QUALITY",
+        "TESTS OF MODEL FIT", "MODEL FIT INFORMATION", "MODEL FIT INFORMATION FOR .*", "CLASSIFICATION QUALITY",
+        "SUMMARY OF MODEL FIT INFORMATION", "RESULTS FOR EXPLORATORY FACTOR ANALYSIS",
         "FINAL CLASS COUNTS AND PROPORTIONS FOR THE LATENT CLASSES",
         "FINAL CLASS COUNTS AND PROPORTIONS FOR THE LATENT CLASS PATTERNS",
         "LATENT TRANSITION PROBABILITIES BASED ON THE ESTIMATED MODEL",
@@ -296,13 +323,17 @@ getSection <- function(sectionHeader, outfiletext, headers="standard", omit=NULL
         "Classification Probabilities for the Most Likely Latent Class Membership \\(Column\\)",
         "Logits for the Classification Probabilities for the Most Likely Latent Class Membership \\(Row\\)",
         "Logits for the Classification Probabilities for the Most Likely Latent Class Membership \\(Column\\)",
-        "MODEL RESULTS", "LOGISTIC REGRESSION ODDS RATIO RESULTS", "RESULTS IN PROBABILITY SCALE",
+        "MODEL RESULTS", "MODEL RESULTS FOR .*", "LOGISTIC REGRESSION ODDS RATIO RESULTS", "RESULTS IN PROBABILITY SCALE",
         "IRT PARAMETERIZATION IN TWO-PARAMETER LOGISTIC METRIC",
         "IRT PARAMETERIZATION IN TWO-PARAMETER PROBIT METRIC",
+        "IRT PARAMETERIZATION",
+        "BRANT WALD TEST FOR PROPORTIONAL ODDS",
+        "BETWEEN-LEVEL FACTOR SCORE COMPARISONS",
         "ALTERNATIVE PARAMETERIZATIONS FOR THE CATEGORICAL LATENT VARIABLE REGRESSION",
         "LATENT CLASS ODDS RATIO RESULTS", "LOGRANK OUTPUT", "STANDARDIZED MODEL RESULTS",
-        "R-SQUARE", "QUALITY OF NUMERICAL RESULTS", "TECHNICAL OUTPUT", "TECHNICAL \\d+ OUTPUT",
-        "TECHNICAL 5/6 OUTPUT",
+        "WITHIN-LEVEL STANDARDIZED MODEL RESULTS FOR CLUSTER \\d+",
+        "R-SQUARE", "QUALITY OF NUMERICAL RESULTS", "QUALITY OF NUMERICAL RESULTS FOR .*", "TECHNICAL OUTPUT", "TECHNICAL \\d+ OUTPUT",
+        "TECHNICAL \\d+ OUTPUT FOR .*", "TECHNICAL 5/6 OUTPUT",
         "TOTAL, TOTAL INDIRECT, SPECIFIC INDIRECT, AND DIRECT EFFECTS",
         "STANDARDIZED TOTAL, TOTAL INDIRECT, SPECIFIC INDIRECT, AND DIRECT EFFECTS", "CONFIDENCE INTERVALS OF MODEL RESULTS",
         "CONFIDENCE INTERVALS FOR THE LOGISTIC REGRESSION ODDS RATIO RESULTS",
@@ -318,14 +349,16 @@ getSection <- function(sectionHeader, outfiletext, headers="standard", omit=NULL
         "EQUALITY TESTS OF MEANS/PROBABILITIES ACROSS CLASSES",
         "THE FOLLOWING DATA SET\\(S\\) DID NOT RESULT IN A COMPLETED REPLICATION:",
         "RESIDUAL OUTPUT", "MODEL MODIFICATION INDICES", "MODEL COMMAND WITH FINAL ESTIMATES USED AS STARTING VALUES",
+        "SUMMARIES OF PLAUSIBLE VALUES \\(N = NUMBER OF OBSERVATIONS * NUMBER OF IMPUTATIONS\\)",
+        "SUMMARY OF PLAUSIBLE STANDARD DEVIATION \\(N = NUMBER OF OBSERVATIONS\\)",
         "Available post-processing tools:",
         "FACTOR SCORE INFORMATION \\(COMPLETE DATA\\)", "SUMMARY OF FACTOR SCORES", "PLOT INFORMATION", "SAVEDATA INFORMATION",
         "RESULTS SAVING INFORMATION", "SAMPLE STATISTICS FOR ESTIMATED FACTOR SCORES", "DIAGRAM INFORMATION",
         "Beginning Time:\\s*\\d+:\\d+:\\d+", "MUTHEN & MUTHEN"
     )
-  
+
   if (!is.null(omit)) headers <- headers[which(!headers %in% omit)] #drop omit
-  
+
   #allow for syntax to include :: to specify a header that spans 2 rows. Example:
   #FINAL CLASS COUNTS AND PROPORTIONS FOR THE LATENT CLASSES
   #BASED ON THE ESTIMATED MODEL
@@ -340,34 +373,241 @@ getSection <- function(sectionHeader, outfiletext, headers="standard", omit=NULL
     if (!is.na(bothMatch)) { beginSection <- candidates[bothMatch] + 1 #since it's a two-line header, skip the first to match typical case
     } else { beginSection <- NA } #could not find section with both rows
   } else {
-    beginSection <- grep(sectionHeader, outfiletext, perl=TRUE)[1]  
+    beginSection <- grep(sectionHeader, outfiletext, perl=TRUE)[1]
   }
-  
+
   #if section header cannot be found, then bail out
   if (is.na(beginSection)) return(NULL)
-  
+
   #form alternation pattern for regular expression (currently adds leading and trailing spaces permission to each header)
   headerRegexpr <- paste("(", paste(gsub("(.*)", "^\\\\s*\\1\\\\s*$", headers, perl=TRUE), sep="", collapse="|"), ")", sep="")
   headerLines <- grep(headerRegexpr, outfiletext, perl=TRUE)
   subsequentHeaders <- which(headerLines > beginSection)
-  
+
   if (length(subsequentHeaders) == 0) nextHeader <- length(outfiletext) #just return the whole enchilada
   else nextHeader <- headerLines[subsequentHeaders[1]] - 1
-  
+
   section.found <- outfiletext[(beginSection+1):nextHeader]
   attr(section.found, "lines") <- beginSection:nextHeader
-  
+
   return(section.found)
-  
+
 }
 
+#' Extract a multiline section from Mplus output
+#'
+#' New approach to multiline section: retain spaces and look for next line that has identical indentation.
+#'
+#' @param header Header section
+#' @param outfiletext Output file text
+#' @param filename The name of the file
+#' @param allowMultiple Logical indicating whether to allow multiple sections. Defaults to \code{FALSE}.
+#' @param allowSpace Logical indicating whether to allow spaces. Defaults to \code{TRUE}.
+#' @param ignore.case Logical whether or not to ignore the case.  Defaults to \code{FALSE}.
+#' @return A list of sections
+#' @keywords internal
+#' @examples
+#' # make me!!!
+getMultilineSection <- function(header, outfiletext, filename, allowMultiple=FALSE, allowSpace=TRUE, ignore.case=FALSE) {
+  # TODO: May2017: update this function to return an empty list in the case of match failure instead of NA_character_.
+  #                Will also need to update behavior of all calls accordingly
+  # Apr2015: Need greater flexibility in how a section is defined. For certain sections, indentation is unhelpful. Example:
+
+  # Chi-Square Test of Model Fit for the Binary and Ordered Categorical
+  # (Ordinal) Outcomes
+  #
+  # Pearson Chi-Square
+  #
+  # Value                             13.286
+  # Degrees of Freedom                     9
+  # P-Value                           0.1501
+  #
+  # Likelihood Ratio Chi-Square
+  #
+  # Value                             16.731
+  # Degrees of Freedom                     9
+  # P-Value                           0.0531
+
+  # Likewise, in the above example there is a second line to the header that should be skipped before developing the section
+  #
+  # New syntax:
+  # {+2i}Chi-Square Test of Model Fit for the Binary and Ordered Categorical::{+1b}Pearson Chi-Square
+  #
+  # +X specifies how many lines (after the header line itself) should be skipped prior to searching for the section end
+  # i,b specifies whether to use identical indentation {i} (which has been the standard up to now) or to use a blank line {b} to identify the section end
+  # If no curly braces are provided, assume {+1i}
+
+  #allow for multiple depths (subsections) separated by ::
+  #will just extract from deepest depth
+  header <- strsplit(header, "::", fixed=TRUE)[[1]]
+
+  sectionList <- list()
+  targetText <- outfiletext
+  for (level in 1:length(header)) {
+    if ((searchCmd <- regexpr("^\\{(\\+\\d+)*([ib])*\\}", header[level], perl=TRUE)) > 0) {
+      if ((o_start <- attr(searchCmd, "capture.start")[1]) > 0) {
+        offset <- substr(header[level], o_start, o_start + attr(searchCmd, "capture.length")[1] - 1)
+        offset <- as.integer(sub("+", "", offset, fixed=TRUE)) #remove + sign
+      } else {
+        offset <- 1
+      }
+
+      if ((s_start <- attr(searchCmd, "capture.start")[2]) > 0) {
+        stype <- substr(header[level], s_start, s_start + attr(searchCmd, "capture.length")[2] - 1)
+        stopifnot(nchar(stype) == 1 && stype %in% c("i", "b"))
+      } else {
+        stype <- "i"
+      }
+
+      #remove search type information from header
+      header[level] <- substr(header[level], searchCmd[1] + attr(searchCmd, "match.length"), nchar(header[level]))
+    } else {
+      offset <- 1
+      stype <- "i"
+    }
+
+    if (allowSpace==TRUE) headerRow <- grep(paste("^\\s*", header[level], "\\s*$", sep=""), targetText, perl=TRUE, ignore.case=ignore.case)
+    else headerRow <- grep(paste("^", header[level], "$", sep=""), targetText, perl=TRUE, ignore.case=ignore.case) #useful for equality of means where we just want anything with 0 spaces
+
+    if (length(headerRow) == 1L || (length(headerRow) > 0L && allowMultiple==TRUE)) {
+      for (r in 1:length(headerRow)) {
+        #locate the position of the first non-space character
+        numSpacesHeader <- regexpr("\\S+.*$", targetText[headerRow[r]], perl=TRUE) - 1
+
+        sectionStart <- headerRow[r] + offset #skip header row itself
+
+        if (stype == "i") {
+          sameLevelMatch <- FALSE
+          readStart <- sectionStart #counter variable to chunk through output
+          while(sameLevelMatch == FALSE) {
+            #read 20-line chunks of text to find next line with identical identation
+            #more efficient than running gregexpr on whole output
+            #match position of first non-space character, subtract 1 to get num spaces.
+            #blank lines will generate a value of -2, so shouldn't throw off top-level match
+            firstNonspaceCharacter <- lapply(gregexpr("\\S+.*$", targetText[readStart:(readStart+19)], perl=TRUE), FUN=function(x) x - 1)
+            samelevelMatches <- which(firstNonspaceCharacter == numSpacesHeader)
+            if (length(samelevelMatches) > 0) {
+              sameLevelMatch <- TRUE
+              sectionEnd <- readStart+samelevelMatches[1] - 2 #-1 for going to line before next header, another -1 for readStart
+            }
+            else if (readStart+19 >= length(targetText)) {
+              sameLevelMatch <- TRUE
+              sectionEnd <- length(targetText)
+            }
+            else readStart <- readStart + 20 #process next batch
+
+            #if (readStart > 100000) browser()#stop ("readStart exceeded 100000. Must be formatting problem.")
+          }
+        } else if (stype == "b") {
+          blankFound <- FALSE
+          i <- 0
+          while(!grepl("^\\s*$", targetText[sectionStart+i], perl=T) && i <= length(targetText) - sectionStart) { #ensure that i doesn't go beyond length of section
+            i <- i + 1
+            if (i > 10000) { stop("searched for next blank line on 10000 rows without success.") }
+          }
+          if (i == 0) {
+            #first line of section was blank, so just set start and end to same
+            #could force search to look beyond first line since it would be rare that a blank line after header match should count as empty
+            sectionEnd <- sectionStart
+          } else {
+            sectionEnd <- sectionStart + i - 1 #line prior to blank
+          }
+
+        }
+
+        #there will probably be collisions between use of nested headers :: and use of allowMultiple
+        #I haven't attempted to get both to work together as they're currently used for different purposes
+        if (isTRUE(allowMultiple))
+          sectionList[[r]] <- targetText[sectionStart:sectionEnd]
+        else
+          #set targetText as chunk from start to end. If there are multiple subsections, then the
+          #next iteration of the for loop will process within the subsetted targetText.
+          targetText <- targetText[sectionStart:sectionEnd]
+
+      }
+
+    } else {
+      targetText <- NA_character_
+      if (length(headerRow) > 1L) warning(paste("Multiple matches for header: ", header, "\n  ", filename, sep=""))
+      break
+      #else if (length(headerRow) < 1) warning(paste("Could not locate section based on header: ", header, "\n  ", filename, sep=""))
+    }
+
+  }
+
+  if (length(sectionList) > 0L && allowMultiple) {
+    attr(sectionList, "matchlines") <- headerRow
+    return(sectionList)
+  } else { return(targetText) }
+}
+
+
+#' Parse Categorical Output
+#'
+#' Helper function for parsing output with variables and categories.
+#'
+#' @param text The output to parse.
+#' @return The parsed output
+#' @author Michael Hallquist
+#' @export
+#' @keywords interface
+#' @examples
+#' "
+#' Example:
+#' UNIVARIATE PROPORTIONS AND COUNTS FOR CATEGORICAL VARIABLES
+#'
+#' SOP2A
+#'   Category 1    0.254      631.000
+#'   Category 2    0.425     1056.000
+#'   Category 3    0.174      432.000
+#'   Category 4    0.147      365.000
+#'
+#' Or Item Categories in IRT Parameterization
+#'
+#' Item Categories
+#'  U1
+#'    Category 1         0.000      0.000      0.000      1.000
+#'    Category 2        -0.247      0.045     -5.534      0.000
+#'    Category 3         0.699      0.052     13.325      0.000
+#'    Category 4        -0.743      0.057    -12.938      0.000
+#'    Category 5         0.291      0.052      5.551      0.000
+#' "
+parseCatOutput <- function(text) {
+  hlines <- grep("^\\s*([\\w_\\d+\\.#\\&]+)\\s*$", text, perl=TRUE)
+  if (any(grepl("Category", text[hlines]))) {
+    stop("Failed to parse categorical output")
+  }
+
+  reformat <- c()
+  for (vv in 1:length(hlines)) {
+    vname <- text[hlines[vv]]
+    startLine <- hlines[vv]+1
+    endLine <- ifelse(hlines[vv] < max(hlines), hlines[vv+1]-1, length(text))
+    reformat <- c(reformat, sub("Category (\\d+)", paste0(vname, ".Cat.\\1"), text[startLine:endLine]))
+  }
+  return(reformat)
+}
+
+
+#' Get Output File List
+#'
+#' This is a helper function used by extractModelSummaries and extractModelParameters.
+#' It determines whether the target is a single file or a directory.
+#' If it is a directory, all .out files are returned (perhaps recursively)
+#' It also permits the files to be filtered using a certain regular expression.
+#'
+#' @param target The target file or directory
+#' @param recursive A logical value whether to search recursively.
+#'   Defaults to \code{FALSE}.
+#' @param filefilter A regular expression passed to \code{grep}
+#'   used to filter the output files.
+#' @return A character vector of the output files
+#' @keywords internal
+#' @examples
+#' # make me!!!
+getOutFileList <- function(target, recursive=FALSE, filefilter) {
 #could this also be used by runModels to locate input files?
 #seems like that function would do well to allow for directories and single files, too.
-getOutFileList <- function(target, recursive=FALSE, filefilter) {
-  #This is a helper function used by extractModelSummaries and extractModelParameters.
-  #It determines whether the target is a single file or a directory.
-  #If it is a directory, all .out files are returned (perhaps recursively)
-  #It also permits the files to be filtered using a certain regular expression.
 
   #determine whether target is a file or a directory
   if (file.exists(target)) {
@@ -404,16 +644,24 @@ getOutFileList <- function(target, recursive=FALSE, filefilter) {
   return(outfiles)
 }
 
-#helper function
+#' Split File and Path into Separate Parts
+#'
+#' This is a helper function to split path into path and filename.
+#' Code adapted from R.utils filePath command.
+#'
+#' @param abspath A character string of the file path
+#' @return A list with elements for the directory, filename,
+#'   and absolute path.
+#' @keywords internal
+#' @examples
+#' # make me!!!
 splitFilePath <- function(abspath) {
-  #function to split path into path and filename
-  #code adapted from R.utils filePath command
   if (!is.character(abspath)) stop("Path not a character string")
   if (nchar(abspath) < 1 || is.na(abspath)) stop("Path is missing or of zero length")
 
   #trailing slash screws up file.exists call on Windows: https://bugs.r-project.org/bugzilla/show_bug.cgi?id=14721
-  abspath <- sub("(\\\\|/)?$", "", abspath, perl=TRUE)  
-  
+  abspath <- sub("(\\\\|/)?$", "", abspath, perl=TRUE)
+
   components <- strsplit(abspath, split="[\\/]")[[1]]
   lcom <- length(components)
 
@@ -439,7 +687,18 @@ splitFilePath <- function(abspath) {
 }
 
 
-#helper function to detect model results columns
+#' Detect Column Names
+#'
+#' Helper function to detect model results columns.
+#'
+#' @param filename The file name
+#' @param modelSection The model section
+#' @param sectionType A character string.  Defaults to \dQuote{model_results}.
+#' @return A list with elements for the directory, filename,
+#'   and absolute path.
+#' @keywords internal
+#' @examples
+#' # make me!!!
 detectColumnNames <- function(filename, modelSection, sectionType="model_results") {
 
   detectionFinished <- FALSE
@@ -464,7 +723,7 @@ detectColumnNames <- function(filename, modelSection, sectionType="model_results
       if (identical(thisLine, c("Posterior", "One-Tailed", "95%", "C.I.")) &&
           identical (nextLine, c("Variable", "Estimate", "S.D.", "P-Value", "Lower", "2.5%", "Upper", "2.5%")))
         varNames <- c("param", "est", "posterior_sd", "pval", "lower_2.5ci", "upper_2.5ci")
-      
+
       #Bayesian (ESTIMATOR=BAYES) 7-column output (Mplus v7)
       else if (identical(thisLine, c("Posterior", "One-Tailed", "95%", "C.I.")) &&
           identical (nextLine, c("Estimate", "S.D.", "P-Value", "Lower", "2.5%", "Upper", "2.5%", "Significance")))
@@ -484,7 +743,7 @@ detectColumnNames <- function(filename, modelSection, sectionType="model_results
       else if (identical(thisLine, c("Two-Tailed")) &&
           identical(nextLine, c("Estimate", "S.E.", "Est./S.E.", "P-Value")))
         varNames <- c("param", "est", "se", "est_se", "pval")
-      
+
       #Five-column output for R-Square that applies to most unstandardized and standardized sections in Mplus 5 and later
       else if ((identical(thisLine, c("Observed", "Two-Tailed")) || identical(thisLine, c("Latent", "Two-Tailed"))) &&
           identical(nextLine, c("Variable", "Estimate", "S.E.", "Est./S.E.", "P-Value")))
@@ -494,22 +753,28 @@ detectColumnNames <- function(filename, modelSection, sectionType="model_results
       else if ((identical(thisLine, c("Observed", "Two-Tailed", "Scale")) || identical(thisLine, c("Latent", "Two-Tailed", "Scale"))) &&
           identical(nextLine, c("Variable", "Estimate", "S.E.", "Est./S.E.", "P-Value", "Factors")))
         varNames <- c("param", "est", "se", "est_se", "pval", "scale_f")
-      
+
       #6-column R-Square output for model with residual variances
       else if ((identical(thisLine, c("Observed", "Two-Tailed", "Residual")) || identical(thisLine, c("Latent", "Two-Tailed", "Residual"))) &&
           identical(nextLine, c("Variable", "Estimate", "S.E.", "Est./S.E.", "P-Value", "Variance")))
         varNames <- c("param", "est", "se", "est_se", "pval", "resid_var")
-      
+
       #2-column R-Square without estimates of uncertainty and p-values
       else if ((identical(thisLine, c("Observed")) || identical(thisLine, c("Latent"))) &&
           identical(nextLine, c("Variable", "Estimate")))
         varNames <- c("param", "est")
 
       #3-column R-Square output for model with residual variances
+      else if ((identical(thisLine, c("Observed", "Scale")) || identical(thisLine, c("Latent", "Scale"))) &&
+          identical(nextLine, c("Variable", "Estimate", "Factors")))
+        varNames <- c("param", "est", "scale_f")
+
+      #3-column R-Square output for model with scale factors (WLSMV)
       else if ((identical(thisLine, c("Observed", "Residual")) || identical(thisLine, c("Latent", "Residual"))) &&
           identical(nextLine, c("Variable", "Estimate", "Variance")))
         varNames <- c("param", "est", "resid_var")
-      
+
+
       #Just estimate available, such as in cases of nonconverged models
       else if (identical(thisLine, c("Estimate")))
         varNames <- c("param", "est")
@@ -532,15 +797,15 @@ detectColumnNames <- function(filename, modelSection, sectionType="model_results
       #if user specifically requests just stdyx STANDARDIZED(STDYX);
       else if (identical(thisLine, c("StdYX")) && identical (nextLine, c("Estimate")))
         varNames <- c("param", "stdyx")
-      
+
       #if user specifically requests just stdy STANDARDIZED(STDY);
       else if (identical(thisLine, c("StdY")) && identical (nextLine, c("Estimate")))
         varNames <- c("param", "stdy")
-      
+
       #if user specifically requests just std STANDARDIZED(STD);
       else if (identical(thisLine, c("Std")) && identical (nextLine, c("Estimate")))
         varNames <- c("param", "std")
-      
+
       #Also, even with new versions of Mplus (e.g., 6.11), sometimes have stdyx, stdy, and std in old-style column format
       #The current case I'm aware of is the use of bootstrapped confidence intervals (BOOTSTRAP + OUTPUT:CINTERVAL).
       else if (identical(thisLine, c("StdYX", "StdY", "Std")) && identical (nextLine, c("Estimate", "Estimate", "Estimate")))
@@ -556,8 +821,12 @@ detectColumnNames <- function(filename, modelSection, sectionType="model_results
     }
     else if (sectionType == "confidence_intervals"){
       if (identical(thisLine, c("Lower",".5%","Lower","2.5%","Lower","5%",
-                        "Estimate","Upper","5%","Upper","2.5%","Upper",".5%" )))
+              "Estimate","Upper","5%","Upper","2.5%","Upper",".5%" ))) {
         varNames <- c("param", "low.5", "low2.5", "low5", "est", "up5", "up2.5", "up.5")
+      } else if (identical(thisLine, c("Lower",".5%","Lower","2.5%",
+              "Estimate","Upper","2.5%","Upper",".5%" ))) {
+        varNames <- c("param", "low.5", "low2.5", "est", "up2.5", "up.5")
+      }
     }
     else if (sectionType == "auxe") { #currently unused
       if (identical(thisLine, c("Mean", "S.E.", "Mean", "S.E."))) {
@@ -573,7 +842,7 @@ detectColumnNames <- function(filename, modelSection, sectionType="model_results
       warning("Unable to determine column names for section ", sectionType, ".\n  ", filename)
       return(NULL)
     }
-      
+
 
   }
 
@@ -581,6 +850,15 @@ detectColumnNames <- function(filename, modelSection, sectionType="model_results
 
 }
 
+#' Trim White Space
+#'
+#' Helper function to remove white space from a character vector
+#'
+#' @param string The character vector to trim white space from.
+#' @return A character vector with the white space removed.
+#' @keywords internal
+#' @examples
+#' MplusAutomation:::trimSpace(c("    test", "another    "))
 trimSpace <- function(string) {
   stringTrim <- sapply(string, function(x) {
         x <- sub("^\\s*", "", x, perl=TRUE)
@@ -590,8 +868,50 @@ trimSpace <- function(string) {
   return(stringTrim)
 }
 
-#helper function to convert strings formatted in Mplus Fortran-style scientific notation using D to indicate double.
+#' Convert Mplus Number to Numeric
+#'
+#' Helper function to convert strings formatted in Mplus
+#' Fortran-style scientific notation using D to indicate double.
+#'
+#' @param vec A character vector of Mplus numbers
+#'   to convert to numeric
+#' @return A numeric vector
+#' @keywords internal
+#' @examples
+#' MplusAutomation:::mplus_as.numeric("3.1D2")
 mplus_as.numeric <- function(vec) {
   vec <- sub("D", "E", vec, fixed=TRUE)
   as.numeric(vec)
+}
+
+#' Separate Hyphenated Variable Strings
+#'
+#' This code is a simplified form of \code{expandCmd} from the \pkg{lavaan} package.
+#' It separates hyphenated variable strings into a list of vectors, while ignoring
+#' hyphens that may be used in numbers.
+#'
+#' Note that this is an internal function only.
+#'
+#' @param cmd A character string
+#' @return The character string if no hyphens, or a list of vectors if there are hyphens.
+#' @author Michael Hallquist revised by Joshua Wiley
+#' @keywords interface
+#' @examples
+#'
+#' MplusAutomation:::separateHyphens("x1x4")
+#' MplusAutomation:::separateHyphens("x1-x4")
+#' MplusAutomation:::separateHyphens("x1-x4; x1*-1; v1-v3;")
+separateHyphens <- function(cmd) {
+  hyphens <- gregexpr(
+    "(?!<(\\*|\\.))\\w+(?!(\\*|\\.))\\s*-\\s*(?!<(\\*|\\.))\\w+(?!(\\*|\\.))",
+    cmd, perl=TRUE)[[1]]
+  if (hyphens[1L] > 0) {
+    lapply(seq_along(hyphens), function(v) {
+      #match one keyword before and after hyphen
+      strsplit(substr(cmd, hyphens[v], hyphens[v] + attr(hyphens, "match.length")[v] - 1),
+               "\\s*-\\s*", perl=TRUE)[[1]][1:2]
+    }) ## return variables separated by hyphens
+  } else {
+    return(cmd) ## no hyphens to expand
+  }
 }

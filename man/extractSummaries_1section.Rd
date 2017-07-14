@@ -4,7 +4,7 @@
 \alias{extractSummaries_1section}
 \title{Extract summary information for one section from Mplus output}
 \usage{
-extractSummaries_1section(modelFitSection, arglist, filename)
+extractSummaries_1section(modelFitSection, arglist, filename, input = list())
 }
 \arguments{
 \item{modelFitSection}{The fit information section}
@@ -24,4 +24,3 @@ Calls \code{extractSummaries_1plan}
 # make me!!!
 }
 \keyword{internal}
-
