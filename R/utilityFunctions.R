@@ -19,6 +19,12 @@
 #'   param <- lookupTech1Parameter(models$tech1, 16)
 #' }
 lookupTech1Parameter <- function(tech1Output, paramNumber) {
+  #accept mplus model object
+  if (inherits(tech1Output, c("mplus.model"))) {
+    tech1Output <- tech1Output$tech1
+  }
+  
+  #or accept $tech1
   if (!inherits(tech1Output, c("mplus.parameterSpecification", "mplus.tech1"))) {
     warning("tech1Output passed into lookupTech1Parameter does not appear to be the right data type.")
     return(NULL)
@@ -40,12 +46,11 @@ lookupTech1Parameter <- function(tech1Output, paramNumber) {
   if (matchFound) {
     cat("Matrix name:", matName, "\n\n")
     print(as.data.frame(matchVars))
-  }
-  else
+    return(invisible(as.data.frame(matchVars)))
+  } else {
     cat("Unable to find matching parameter in TECH1 output for parameter number:", paramNumber)
-
-  return(as.data.frame(matchVars))
-
+    return(invisible(NULL))
+  }
 }
 
 #' Test inequality-constrained hypothesis for two parameters based on iterations of MCMC chains
@@ -290,108 +295,123 @@ getSection_Blanklines <- function(sectionHeader, outfiletext) {
 #' @param sectionHeader Header section
 #' @param outfiletext Output file text
 #' @param headers Can pass custom headers but defaults to a standard set.
-#' @param omit TODO.
 #' @return Section
 #' @keywords internal
 #' @examples
 #' # make me!!!
-getSection <- function(sectionHeader, outfiletext, headers="standard", omit=NULL) {
+getSection <- function(sectionHeader, outfiletext, headers="standard") {
   #encode the top-level major headers here, but allow for custom headers to be passed in
-  #omit allows for one or more strings from headers not to be considered
-  #just used for factor score statistics at the moment (these include a SAMPLE STATISTICS section)
-  if (headers[1L] == "standard") headers <- c("INPUT INSTRUCTIONS", "SUMMARY OF ANALYSIS",
-        "SUMMARY OF DATA FOR THE FIRST DATA SET", "SUMMARY OF DATA FOR THE FIRST REPLICATION",
-        "SUMMARY OF MISSING DATA PATTERNS FOR THE FIRST REPLICATION",
-        "SUMMARY OF MISSING DATA PATTERNS",
-        "COVARIANCE COVERAGE OF DATA FOR THE FIRST REPLICATION",
-        "COVARIANCE COVERAGE OF DATA", "UNIVARIATE SAMPLE STATISTICS",
-        "THE MODEL ESTIMATION TERMINATED NORMALLY",
-        "SAMPLE STATISTICS", "SAMPLE STATISTICS FOR THE FIRST REPLICATION",
-        "RESULTS FOR BASIC ANALYSIS",
-        "CROSSTABS FOR CATEGORICAL VARIABLES", "UNIVARIATE PROPORTIONS AND COUNTS FOR CATEGORICAL VARIABLES",
-        "SUMMARY OF CENSORED LIMITS", "COUNT PROPORTION OF ZERO, MINIMUM AND MAXIMUM VALUES",
-        "RANDOM STARTS RESULTS RANKED FROM THE BEST TO THE WORST LOGLIKELIHOOD VALUES",
-        "TESTS OF MODEL FIT", "MODEL FIT INFORMATION", "MODEL FIT INFORMATION FOR .*", "CLASSIFICATION QUALITY",
-        "SUMMARY OF MODEL FIT INFORMATION", "RESULTS FOR EXPLORATORY FACTOR ANALYSIS",
-        "FINAL CLASS COUNTS AND PROPORTIONS FOR THE LATENT CLASSES",
-        "FINAL CLASS COUNTS AND PROPORTIONS FOR THE LATENT CLASS PATTERNS",
-        "LATENT TRANSITION PROBABILITIES BASED ON THE ESTIMATED MODEL",
-        "FINAL CLASS COUNTS AND PROPORTIONS FOR EACH LATENT CLASS VARIABLE",
-        "CLASSIFICATION OF INDIVIDUALS BASED ON THEIR MOST LIKELY LATENT CLASS MEMBERSHIP",
-        "Average Latent Class Probabilities for Most Likely Latent Class Membership \\(Row\\)",
-        "Classification Probabilities for the Most Likely Latent Class Membership \\(Row\\)",
-        "Classification Probabilities for the Most Likely Latent Class Membership \\(Column\\)",
-        "Logits for the Classification Probabilities for the Most Likely Latent Class Membership \\(Row\\)",
-        "Logits for the Classification Probabilities for the Most Likely Latent Class Membership \\(Column\\)",
-        "MODEL RESULTS", "MODEL RESULTS FOR .*", "LOGISTIC REGRESSION ODDS RATIO RESULTS", "RESULTS IN PROBABILITY SCALE",
-        "IRT PARAMETERIZATION IN TWO-PARAMETER LOGISTIC METRIC",
-        "IRT PARAMETERIZATION IN TWO-PARAMETER PROBIT METRIC",
-        "IRT PARAMETERIZATION",
-        "BRANT WALD TEST FOR PROPORTIONAL ODDS",
-        "BETWEEN-LEVEL FACTOR SCORE COMPARISONS",
-        "ALTERNATIVE PARAMETERIZATIONS FOR THE CATEGORICAL LATENT VARIABLE REGRESSION",
-        "LATENT CLASS ODDS RATIO RESULTS", "LOGRANK OUTPUT", "STANDARDIZED MODEL RESULTS",
-        "WITHIN-LEVEL STANDARDIZED MODEL RESULTS FOR CLUSTER \\d+",
-        "R-SQUARE", "QUALITY OF NUMERICAL RESULTS", "QUALITY OF NUMERICAL RESULTS FOR .*", "TECHNICAL OUTPUT", "TECHNICAL \\d+ OUTPUT",
-        "TECHNICAL \\d+ OUTPUT FOR .*", "TECHNICAL 5/6 OUTPUT",
-        "TOTAL, TOTAL INDIRECT, SPECIFIC INDIRECT, AND DIRECT EFFECTS",
-        "STANDARDIZED TOTAL, TOTAL INDIRECT, SPECIFIC INDIRECT, AND DIRECT EFFECTS", "CONFIDENCE INTERVALS OF MODEL RESULTS",
-        "CONFIDENCE INTERVALS FOR THE LOGISTIC REGRESSION ODDS RATIO RESULTS",
-        "CREDIBILITY INTERVALS OF MODEL RESULTS",
-        "CONFIDENCE INTERVALS OF STANDARDIZED MODEL RESULTS",
-        "CREDIBILITY INTERVALS OF STANDARDIZED MODEL RESULTS",
-        "CONFIDENCE INTERVALS IN PROBABILITY SCALE",
-        "CONFIDENCE INTERVALS OF TOTAL, TOTAL INDIRECT, SPECIFIC INDIRECT, AND DIRECT EFFECTS",
-        "CONFIDENCE INTERVALS OF STANDARDIZED TOTAL, TOTAL INDIRECT, SPECIFIC INDIRECT,", #omitted "AND DIRECT EFFECTS"
-        "EQUALITY TESTS OF MEANS ACROSS CLASSES USING POSTERIOR PROBABILITY-BASED",
-        "EQUALITY TESTS OF MEANS ACROSS CLASSES USING THE BCH PROCEDURE",
-        "EQUALITY TESTS OF MEANS ACROSS CLASSES USING THE 3-STEP PROCEDURE",
-        "EQUALITY TESTS OF MEANS/PROBABILITIES ACROSS CLASSES",
-        "THE FOLLOWING DATA SET\\(S\\) DID NOT RESULT IN A COMPLETED REPLICATION:",
-        "RESIDUAL OUTPUT", "MODEL MODIFICATION INDICES", "MODEL COMMAND WITH FINAL ESTIMATES USED AS STARTING VALUES",
-        "SUMMARIES OF PLAUSIBLE VALUES \\(N = NUMBER OF OBSERVATIONS * NUMBER OF IMPUTATIONS\\)",
-        "SUMMARY OF PLAUSIBLE STANDARD DEVIATION \\(N = NUMBER OF OBSERVATIONS\\)",
-        "Available post-processing tools:",
-        "FACTOR SCORE INFORMATION \\(COMPLETE DATA\\)", "SUMMARY OF FACTOR SCORES", "PLOT INFORMATION", "SAVEDATA INFORMATION",
-        "RESULTS SAVING INFORMATION", "SAMPLE STATISTICS FOR ESTIMATED FACTOR SCORES", "DIAGRAM INFORMATION",
-        "Beginning Time:\\s*\\d+:\\d+:\\d+", "MUTHEN & MUTHEN"
-    )
-
-  if (!is.null(omit)) headers <- headers[which(!headers %in% omit)] #drop omit
-
+  
+  #use cached headers from initial parsing to speed up search for the appropriate section
+  h <- attr(outfiletext, "headerlines")
+  if (!headers[1L] == "standard") {
+    #parse custom headers. form alternation pattern for regular expression (adds leading and trailing spaces permission to each header)
+    headerRegexpr <- paste("(", paste(gsub("(.*)", "^\\\\s*\\1\\\\s*$", headers, perl=TRUE), sep="", collapse="|"), ")", sep="")
+    h <- grep(headerRegexpr, outfiletext, perl=TRUE)
+  } else if (is.null(h)) {
+    stop("Standard headers not parsed")
+  }
+  
   #allow for syntax to include :: to specify a header that spans 2 rows. Example:
   #FINAL CLASS COUNTS AND PROPORTIONS FOR THE LATENT CLASSES
   #BASED ON THE ESTIMATED MODEL
-
+  
   #note that this will identify a unique match for the target sectionHeader, but the search for
   #subsequent headers just uses the one-row list above. For now, this works in all cases I know of.
   if (grepl("::", sectionHeader, fixed=TRUE)) {
     firstLine <- sub("^(.*)::.*$", "\\1", sectionHeader, perl=TRUE)
     nextLine <- sub("^.*::(.*)$", "\\1", sectionHeader, perl=TRUE)
-    candidates <- grep(firstLine, outfiletext, perl=TRUE) #will return NA if no match
-    bothMatch <- grep(nextLine, outfiletext[candidates+1], perl=TRUE)[1] #return first match among candidates
-    if (!is.na(bothMatch)) { beginSection <- candidates[bothMatch] + 1 #since it's a two-line header, skip the first to match typical case
+    candidates <- grep(firstLine, outfiletext[h], perl=TRUE) #will return NA if no match
+    bothMatch <- grep(nextLine, outfiletext[ h[candidates]+1 ], perl=TRUE)[1] #return first match among candidates
+    if (!is.na(bothMatch)) { beginSection <- h[candidates[bothMatch]] + 1 #since it's a two-line header, skip the first to match typical case
     } else { beginSection <- NA } #could not find section with both rows
   } else {
-    beginSection <- grep(sectionHeader, outfiletext, perl=TRUE)[1]
+    beginSection <- h[ grep(sectionHeader, outfiletext[h], perl=TRUE)[1] ]
   }
-
+  
   #if section header cannot be found, then bail out
   if (is.na(beginSection)) return(NULL)
+  
+  #identify headers after this section to find end of section
+  subsequentHeaders <- which(h > beginSection)
 
+  if (length(subsequentHeaders) == 0) { nextHeader <- length(outfiletext) #just return the whole enchilada
+  } else { nextHeader <- h[subsequentHeaders[1]] - 1 }
+  
+  section.found <- outfiletext[(beginSection+1):nextHeader]
+  attr(section.found, "lines") <- beginSection:nextHeader
+  
+  return(section.found)  
+}
+
+#master function to parse text into sections
+parse_into_sections <- function(outfiletext) {
+  headers <- c("INPUT INSTRUCTIONS", "SUMMARY OF ANALYSIS",
+      "SUMMARY OF DATA FOR THE FIRST DATA SET", "SUMMARY OF DATA FOR THE FIRST REPLICATION",
+      "SUMMARY OF MISSING DATA PATTERNS FOR THE FIRST REPLICATION",
+      "SUMMARY OF MISSING DATA PATTERNS",
+      "COVARIANCE COVERAGE OF DATA FOR THE FIRST REPLICATION",
+      "COVARIANCE COVERAGE OF DATA", "UNIVARIATE SAMPLE STATISTICS",
+      "THE MODEL ESTIMATION TERMINATED NORMALLY",
+      "SAMPLE STATISTICS", "SAMPLE STATISTICS FOR THE FIRST REPLICATION",
+      "RESULTS FOR BASIC ANALYSIS",
+      "CROSSTABS FOR CATEGORICAL VARIABLES", "UNIVARIATE PROPORTIONS AND COUNTS FOR CATEGORICAL VARIABLES",
+      "SUMMARY OF CENSORED LIMITS", "COUNT PROPORTION OF ZERO, MINIMUM AND MAXIMUM VALUES",
+      "RANDOM STARTS RESULTS RANKED FROM THE BEST TO THE WORST LOGLIKELIHOOD VALUES",
+      "TESTS OF MODEL FIT", "MODEL FIT INFORMATION", "MODEL FIT INFORMATION FOR .*", "CLASSIFICATION QUALITY",
+      "SUMMARY OF MODEL FIT INFORMATION", "RESULTS FOR EXPLORATORY FACTOR ANALYSIS",
+      "FINAL CLASS COUNTS AND PROPORTIONS FOR THE LATENT CLASSES",
+      "FINAL CLASS COUNTS AND PROPORTIONS FOR THE LATENT CLASS PATTERNS",
+      "LATENT TRANSITION PROBABILITIES BASED ON THE ESTIMATED MODEL",
+      "FINAL CLASS COUNTS AND PROPORTIONS FOR EACH LATENT CLASS VARIABLE",
+      "CLASSIFICATION OF INDIVIDUALS BASED ON THEIR MOST LIKELY LATENT CLASS MEMBERSHIP",
+      "Average Latent Class Probabilities for Most Likely Latent Class Membership \\(Row\\)",
+      "Classification Probabilities for the Most Likely Latent Class Membership \\(Row\\)",
+      "Classification Probabilities for the Most Likely Latent Class Membership \\(Column\\)",
+      "Logits for the Classification Probabilities for the Most Likely Latent Class Membership \\(Row\\)",
+      "Logits for the Classification Probabilities for the Most Likely Latent Class Membership \\(Column\\)",
+      "MODEL RESULTS", "MODEL RESULTS FOR .*", "LOGISTIC REGRESSION ODDS RATIO RESULTS", "RESULTS IN PROBABILITY SCALE",
+      "IRT PARAMETERIZATION IN TWO-PARAMETER LOGISTIC METRIC",
+      "IRT PARAMETERIZATION IN TWO-PARAMETER PROBIT METRIC",
+      "IRT PARAMETERIZATION",
+      "BRANT WALD TEST FOR PROPORTIONAL ODDS",
+      "BETWEEN-LEVEL FACTOR SCORE COMPARISONS",
+      "ALTERNATIVE PARAMETERIZATIONS FOR THE CATEGORICAL LATENT VARIABLE REGRESSION",
+      "LATENT CLASS ODDS RATIO RESULTS", "LOGRANK OUTPUT", "STANDARDIZED MODEL RESULTS",
+      "WITHIN-LEVEL STANDARDIZED MODEL RESULTS FOR CLUSTER \\d+",
+      "R-SQUARE", "QUALITY OF NUMERICAL RESULTS", "QUALITY OF NUMERICAL RESULTS FOR .*", "TECHNICAL OUTPUT", "TECHNICAL \\d+ OUTPUT",
+      "TECHNICAL \\d+ OUTPUT FOR .*", "TECHNICAL 5/6 OUTPUT",
+      "TOTAL, TOTAL INDIRECT, SPECIFIC INDIRECT, AND DIRECT EFFECTS",
+      "TOTAL, TOTAL INDIRECT, SPECIFIC INDIRECT, AND DIRECT EFFECTS FOR LATENT RESPONSE VARIABLES",
+      "TOTAL, INDIRECT, AND DIRECT EFFECTS BASED ON COUNTERFACTUALS \\(CAUSALLY-DEFINED EFFECTS\\)",
+      "STANDARDIZED TOTAL, TOTAL INDIRECT, SPECIFIC INDIRECT, AND DIRECT EFFECTS", "CONFIDENCE INTERVALS OF MODEL RESULTS",
+      "CONFIDENCE INTERVALS FOR THE LOGISTIC REGRESSION ODDS RATIO RESULTS",
+      "CREDIBILITY INTERVALS OF MODEL RESULTS",
+      "CONFIDENCE INTERVALS OF STANDARDIZED MODEL RESULTS",
+      "CREDIBILITY INTERVALS OF STANDARDIZED MODEL RESULTS",
+      "CONFIDENCE INTERVALS IN PROBABILITY SCALE",
+      "CONFIDENCE INTERVALS OF TOTAL, TOTAL INDIRECT, SPECIFIC INDIRECT, AND DIRECT EFFECTS",
+      "CONFIDENCE INTERVALS OF STANDARDIZED TOTAL, TOTAL INDIRECT, SPECIFIC INDIRECT,", #omitted "AND DIRECT EFFECTS"
+      "EQUALITY TESTS OF MEANS ACROSS CLASSES USING POSTERIOR PROBABILITY-BASED",
+      "EQUALITY TESTS OF MEANS ACROSS CLASSES USING THE BCH PROCEDURE",
+      "EQUALITY TESTS OF MEANS ACROSS CLASSES USING THE 3-STEP PROCEDURE",
+      "EQUALITY TESTS OF MEANS/PROBABILITIES ACROSS CLASSES",
+      "THE FOLLOWING DATA SET\\(S\\) DID NOT RESULT IN A COMPLETED REPLICATION:",
+      "RESIDUAL OUTPUT", "MODEL MODIFICATION INDICES", "MODEL COMMAND WITH FINAL ESTIMATES USED AS STARTING VALUES",
+      "SUMMARIES OF PLAUSIBLE VALUES \\(N = NUMBER OF OBSERVATIONS * NUMBER OF IMPUTATIONS\\)",
+      "SUMMARY OF PLAUSIBLE STANDARD DEVIATION \\(N = NUMBER OF OBSERVATIONS\\)",
+      "Available post-processing tools:",
+      "FACTOR SCORE INFORMATION \\(COMPLETE DATA\\)", "SUMMARY OF FACTOR SCORES", "PLOT INFORMATION", "SAVEDATA INFORMATION",
+      "RESULTS SAVING INFORMATION", "SAMPLE STATISTICS FOR ESTIMATED FACTOR SCORES", "DIAGRAM INFORMATION",
+      "Beginning Time:\\s*\\d+:\\d+:\\d+", "MUTHEN & MUTHEN"
+  )
+  
   #form alternation pattern for regular expression (currently adds leading and trailing spaces permission to each header)
   headerRegexpr <- paste("(", paste(gsub("(.*)", "^\\\\s*\\1\\\\s*$", headers, perl=TRUE), sep="", collapse="|"), ")", sep="")
   headerLines <- grep(headerRegexpr, outfiletext, perl=TRUE)
-  subsequentHeaders <- which(headerLines > beginSection)
-
-  if (length(subsequentHeaders) == 0) nextHeader <- length(outfiletext) #just return the whole enchilada
-  else nextHeader <- headerLines[subsequentHeaders[1]] - 1
-
-  section.found <- outfiletext[(beginSection+1):nextHeader]
-  attr(section.found, "lines") <- beginSection:nextHeader
-
-  return(section.found)
-
+  
+  attr(outfiletext, "headerlines") <- headerLines
+  return(outfiletext)
 }
 
 #' Extract a multiline section from Mplus output
@@ -440,7 +460,7 @@ getMultilineSection <- function(header, outfiletext, filename, allowMultiple=FAL
   #allow for multiple depths (subsections) separated by ::
   #will just extract from deepest depth
   header <- strsplit(header, "::", fixed=TRUE)[[1]]
-
+  
   sectionList <- list()
   targetText <- outfiletext
   for (level in 1:length(header)) {
@@ -489,12 +509,10 @@ getMultilineSection <- function(header, outfiletext, filename, allowMultiple=FAL
             if (length(samelevelMatches) > 0) {
               sameLevelMatch <- TRUE
               sectionEnd <- readStart+samelevelMatches[1] - 2 #-1 for going to line before next header, another -1 for readStart
-            }
-            else if (readStart+19 >= length(targetText)) {
+            } else if (readStart+19 >= length(targetText)) {
               sameLevelMatch <- TRUE
               sectionEnd <- length(targetText)
-            }
-            else readStart <- readStart + 20 #process next batch
+            } else { readStart <- readStart + 20 } #process next batch
 
             #if (readStart > 100000) browser()#stop ("readStart exceeded 100000. Must be formatting problem.")
           }
@@ -739,6 +757,11 @@ detectColumnNames <- function(filename, modelSection, sectionType="model_results
           identical(nextLine, c("Estimate", "S.E.", "Est./S.E.", "P-Value", "Missing")))
         varNames <- c("param", "est", "se", "est_se", "pval", "rate_missing")
 
+      #Multiple imputation output for R2 including rate of missing (introduced in v8, I think)
+      else if (identical(thisLine, c("Observed", "Two-Tailed", "Rate", "of")) &&
+          identical(nextLine, c("Variable", "Estimate", "S.E.", "Est./S.E.", "P-Value", "Missing")))
+        varNames <- c("param", "est", "se", "est_se", "pval", "rate_missing")
+            
       #Usual five-column output that applies to most unstandardized and standardized sections in Mplus 5 and later
       else if (identical(thisLine, c("Two-Tailed")) &&
           identical(nextLine, c("Estimate", "S.E.", "Est./S.E.", "P-Value")))
@@ -842,12 +865,9 @@ detectColumnNames <- function(filename, modelSection, sectionType="model_results
       warning("Unable to determine column names for section ", sectionType, ".\n  ", filename)
       return(NULL)
     }
-
-
   }
 
   return(varNames)
-
 }
 
 #' Trim White Space

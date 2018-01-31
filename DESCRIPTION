@@ -1,8 +1,9 @@
 Package: MplusAutomation
 Type: Package
-Title: Automating Mplus Model Estimation and Interpretation
-Version: 0.7
-Date: 2017-07-12
+Title: An R Package for Facilitating Large-Scale Latent Variable
+        Analyses in Mplus
+Version: 0.7-1
+Date: 2018-01-31
 Authors@R: c(person("Michael", "Hallquist", role = c("aut", "cre"),
     email = "michael.hallquist@gmail.com"),
     person("Joshua", "Wiley", role = "aut",
@@ -23,8 +24,8 @@ LazyLoad: yes
 LazyData: yes
 RoxygenNote: 6.0.1
 NeedsCompilation: no
-Packaged: 2017-07-14 13:32:35 UTC; michael
+Packaged: 2018-01-31 16:38:50 UTC; mnh5174
 Author: Michael Hallquist [aut, cre],
   Joshua Wiley [aut]
 Repository: CRAN
-Date/Publication: 2017-07-14 14:40:42 UTC
+Date/Publication: 2018-01-31 18:05:22 UTC

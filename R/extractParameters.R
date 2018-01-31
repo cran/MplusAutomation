@@ -38,7 +38,8 @@ extractParameters_1chunk <- function(filename, thisChunk, columnNames, sectionNa
               identical(x, c("Variable", "Estimate", "Factors")) ||
               identical(x, c("Variable", "Estimate", "Variance")) ||
               identical(x, c("Posterior", "One-Tailed", "95%", "C.I.")) ||
-              identical(x, c("Variable", "Estimate", "S.D.", "P-Value", "Lower", "2.5%", "Upper", "2.5%"))
+              identical(x, c("Variable", "Estimate", "S.D.", "P-Value", "Lower", "2.5%", "Upper", "2.5%")) ||
+              identical(x, c("Observed", "Two-Tailed", "Rate", "of")) #r2 output for MI v8 with rate of missing
           ) { TRUE } else { FALSE }
         })
 
@@ -235,7 +236,7 @@ extractParameters_1section <- function(filename, modelSection, sectionName) {
   } else { sectionType <- "model_results" }
 
   if (!exists("columnNames")) { columnNames <- detectColumnNames(filename, modelSection, sectionType) }
-  
+
   #return nothing if unable to detect column names (this will then get filtered out in the extractParameters_1file process
   if (is.null(columnNames)) {
     x <- data.frame() #empty
@@ -449,12 +450,12 @@ extractParameters_1file <- function(outfiletext, filename, resultType) {
     allSections$unstandardized <- unstandardizedList
   } else {
     unstandardizedSection <- getSection("^MODEL RESULTS$", outfiletext)
+    
     if (!is.null(unstandardizedSection)) {
       allSections <- appendListElements(allSections, extractParameters_1section(filename, unstandardizedSection, "unstandardized"))
     }      
   }
   
-
   standardizedSection <- getSection("^STANDARDIZED MODEL RESULTS$", outfiletext)
 
   if (!is.null(standardizedSection)) {
@@ -698,7 +699,8 @@ extractParameters_1file <- function(outfiletext, filename, resultType) {
 #' 	"C:/Program Files/Mplus/Mplus Examples/User's Guide Examples/ex3.14.out")
 #' }
 extractModelParameters <- function(target=getwd(), recursive=FALSE, filefilter, dropDimensions=FALSE, resultType) {
-  message("This function is deprecated and will be removed from future versions of MplusAutomation. Please use readModels() instead.")
+  #message("This function is deprecated and will be removed from future versions of MplusAutomation. Please use readModels() instead.")
+  message("extractModelParameters has been deprecated. Please use readModels(\"nameofMplusoutfile.out\", what=\"parameters\")$parameters to replicate the old functionality.")
   
   #function tree (top to bottom):
   #extractModelParameters: loop over one or more output files
@@ -706,33 +708,33 @@ extractModelParameters <- function(target=getwd(), recursive=FALSE, filefilter, 
   #extractParameters_1section: extract model parameters for a given section.
   #extractParameters_1chunk: extract model parameters for a given chunk (e.g., Latent class 2, Between Level) within a given section.
 
-  outfiles <- getOutFileList(target, recursive, filefilter)
-
-  allFiles <- list()
-  for (curfile in outfiles) {
-    #if not recursive, then each element is uniquely identified (we hope!) by filename alone
-    if (recursive==FALSE)	listID <- make.names(splitFilePath(curfile)$filename) #each list element is named by the respective file
-    else listID <- make.names(curfile) #each list element is named by the respective file
-
-    outfiletext <- scan(curfile, what="character", sep="\n", strip.white=FALSE, blank.lines.skip=FALSE, quiet=TRUE)
-
-    allFiles[[listID]] <- extractParameters_1file(outfiletext, curfile, resultType)
-  }
-
-
-  #dropDimensions <- TRUE
-  if (length(allFiles) == 1) allFiles <- allFiles[[1]] # when only extracting a single file, return just the parameters list for the single model
-  else if (dropDimensions == TRUE) {
-    #in the case of multi-file output, we want to ensure that the interior lists (which contain model sections like stdyx.standardized)
-    #all have a similar structure. But if all of them have only one element
-    allNames <- sapply(allFiles, names)
-    allLengths <- sapply(allNames, length)
-
-    #if there is only one unique name in the bunch and all sub-list lengths are 1, then collapse
-    #could probably just check for one unique name.
-    if (length(unique(unlist(allLengths))) == 1 && length(unique(unlist(allNames))) == 1) {
-      allFiles <- sapply(allFiles, "[", 1)
-    }
+#  outfiles <- getOutFileList(target, recursive, filefilter)
+#
+#  allFiles <- list()
+#  for (curfile in outfiles) {
+#    #if not recursive, then each element is uniquely identified (we hope!) by filename alone
+#    if (recursive==FALSE)	listID <- make.names(splitFilePath(curfile)$filename) #each list element is named by the respective file
+#    else listID <- make.names(curfile) #each list element is named by the respective file
+#
+#    outfiletext <- scan(curfile, what="character", sep="\n", strip.white=FALSE, blank.lines.skip=FALSE, quiet=TRUE)
+#
+#    allFiles[[listID]] <- extractParameters_1file(outfiletext, curfile, resultType)
+#  }
+#
+#
+#  #dropDimensions <- TRUE
+#  if (length(allFiles) == 1) allFiles <- allFiles[[1]] # when only extracting a single file, return just the parameters list for the single model
+#  else if (dropDimensions == TRUE) {
+#    #in the case of multi-file output, we want to ensure that the interior lists (which contain model sections like stdyx.standardized)
+#    #all have a similar structure. But if all of them have only one element
+#    allNames <- sapply(allFiles, names)
+#    allLengths <- sapply(allNames, length)
+#
+#    #if there is only one unique name in the bunch and all sub-list lengths are 1, then collapse
+#    #could probably just check for one unique name.
+#    if (length(unique(unlist(allLengths))) == 1 && length(unique(unlist(allNames))) == 1) {
+#      allFiles <- sapply(allFiles, "[", 1)
+#    }
 #		nameLengths <- sapply(allNames, length)
 #		names(nameLengths) <- NULL
 #		numUniqueLengths <- length(unique(nameLengths))
@@ -741,106 +743,7 @@ extractModelParameters <- function(target=getwd(), recursive=FALSE, filefilter, 
 #			#need to check for identical names
 #
 #		}
-  }
-
-  return(allFiles)
-}
-
-extractIndirect <- function(outfiletext, curfile) {
-  indirectSection <- getSection("^TOTAL, TOTAL INDIRECT, SPECIFIC INDIRECT, AND DIRECT EFFECTS$", outfiletext)
-  if (is.null(indirectSection)) return(list()) #no indirect output
-  
-  effectHeaders <- grep("^Effects from [A-z_0-9]+ to [A-z_0-9]+$", indirectSection, ignore.case=TRUE, perl=TRUE)
-  columnNames <- detectColumnNames(curfile, trimSpace(indirectSection[1:50]), "model_results") #assume that column headers are somewhere in the first 50 lines
-  columnNames[1] <- "outcome" #rename param -> outcome for clarity
-  
-  indirectOutput <- list()
-  for (e in 1:length(effectHeaders)) {
-    elist <- list()
-    elist$pred <- sub("^Effects from ([A-z_0-9]+) to [A-z_0-9]+$", "\\1", indirectSection[effectHeaders[e]], ignore.case=TRUE, perl=TRUE)
-    elist$outcome <- sub("^Effects from [A-z_0-9]+ to ([A-z_0-9]+)$", "\\1", indirectSection[effectHeaders[e]], ignore.case=TRUE, perl=TRUE)
-    
-    end <- ifelse (e < length(effectHeaders), effectHeaders[e+1]-1, length(indirectSection)) 
-    esection <- indirectSection[(effectHeaders[e]+1):end]
-    
-    #parse total, total indirect, specific indirect, and direct
-    totalLine <- trimSpace(grep("Total\\s+[\\-0-9\\.]+.*$", esection, ignore.case=TRUE, perl=TRUE, value=TRUE))
-    if (length(totalLine) > 0L) {
-      totalLine <- as.list(strsplit(totalLine, "\\s+", perl=TRUE)[[1]])
-      names(totalLine) <- columnNames; totalLine$summary <- "Total"; totalLine$outcome <- NULL
-    }
-    
-    totalIndirectLine <- trimSpace(grep("(Indirect|(Total|Sum of) indirect)\\s+[\\-0-9\\.]+.*$", esection, ignore.case=TRUE, perl=TRUE, value=TRUE))
-    if (length(totalIndirectLine) > 0L) {
-      totalIndirectLine <- as.list(strsplit(totalIndirectLine, "\\s+", perl=TRUE)[[1]])
-      if (paste(unlist(totalIndirectLine[1:3]), collapse=" ") == "Sum of indirect") { #mplus v6 output? Not sure what generates sum versus total
-        totalIndirectLine <- totalIndirectLine[-1:-3]
-        hname <- "Sum of indirect"
-      } else if (paste(unlist(totalIndirectLine[1:2]), collapse=" ") == "Total indirect") {
-        totalIndirectLine <- totalIndirectLine[-1:-2]
-        hname <- "Total indirect"
-      } else if (unlist(totalIndirectLine[1]) == "Indirect") {
-        totalIndirectLine <- totalIndirectLine[-1]
-        hname <- "Indirect"
-      } else { stop("Unable to parse header from total indirect line: ", totalIndirectLine)}
-      names(totalIndirectLine) <- columnNames[-1]; #don't include "outcome" from columnNames since this is added en masse to summaries below
-      totalIndirectLine$summary <- hname #relabel according to Mplus output
-    }
-    
-    directSection <- strsplit(trimSpace(getMultilineSection("Direct", esection, curfile)), "\\s+")
-    useful <- which(sapply(directSection, length) > 1L)
-    if (length(useful) == 1L) {
-      direct <- as.list(directSection[[useful]])
-      names(direct) <- columnNames
-      direct$summary <- "Direct"; direct$outcome <- NULL
-    } else {
-      direct <- list()
-    }
-
-    elist$summaries <- data.frame(pred=elist$pred, outcome=elist$outcome, rbind(totalLine, totalIndirectLine, direct), row.names=NULL)
-    
-    #reorder columns to put pred, outcome, summary first. Use columnNames vector without "outcome" to place remainder in order
-    elist$summaries <- elist$summaries[,c("pred", "outcome", "summary", columnNames[-1])]
-    
-    #use white space to demarcate ending of specific indirect subsection
-    specSection <- trimSpace(getMultilineSection("Specific indirect", esection, curfile))
-    blanks <- which(specSection=="")
-    if (length(blanks) > 0L) {
-      thisEffect <- NULL
-      
-      for (i in 1:length(blanks)) {
-        if (i < length(blanks)) {
-          startLine <- blanks[i]+1
-          endLine <- blanks[i+1]-1
-          if (startLine >= endLine) { next } #occurs with consecutive blanks -> skip out
-          toparse <- specSection[startLine:endLine] 
-        } else { 
-          if (blanks[i]+1 < length(specSection)) { 
-            toparse <- specSection[(blanks[i]+1):length(specSection)]
-          } else { next } #nothing to parse, just a trailing blank
-        }
-        #if (length(toparse) < 2L) { next } #double blank line problem
-        source <- toparse[1] #first variable is the "source" (i.e., the variable furthest upstream) (X IND Y)
-        outcome <- strsplit(toparse[length(toparse)], "\\s+")[[1]] #this should always be the outcome and should have the statistics on it
-        names(outcome) <- columnNames
-        outcome <- data.frame(as.list(outcome))
-        intervening <- toparse[2:(length(toparse)-1)]
-        thisEffect <- rbind(thisEffect, data.frame(pred=source, intervening = paste(intervening, collapse="."), outcome))
-      }
-      elist$specific <- thisEffect
-    }
-    indirectOutput[[e]] <- elist
-  }
-  
-  #name list elements according to 
-  names(indirectOutput) <- sapply(indirectOutput, function(el) { paste(el$pred, el$outcome, sep=".") })
-  
-  #change format to return two data.frames, one with all summaries, the other with all specific
-  summarydf <- do.call(rbind, lapply(indirectOutput, function(el) { el$summaries }))
-  specificdf <- do.call(rbind, lapply(indirectOutput, function(el) { el$specific }))
-  row.names(summarydf) <- NULL; row.names(specificdf) <- NULL 
-  toreturn <- list(overall=summarydf, specific=specificdf)
-  class(toreturn) <- "mplus.indirect"
-
-  return(toreturn)
+#  }
+#
+#  return(allFiles)
 }
