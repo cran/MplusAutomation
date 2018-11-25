@@ -67,7 +67,7 @@ mixtureSummaryTable <- function(modelList,
     !is.null(x$input$analysis[["type"]])
   })
   mixtures[mixtures] <- sapply(modelList[mixtures], function(x) {
-    tolower(x$input$analysis$type) == "mixture"
+    grepl("mixture", tolower(x$input$analysis$type))
   })
   if (!any(mixtures))
     stop("mixtureSummaryTable requires a list of mixture models as its first argument.")
@@ -179,7 +179,6 @@ mixtureSummaryTable <- function(modelList,
       call. = FALSE
     )
   }
-  modelList$iris_4_class.out$errors
   not_terminated <- which(sapply(modelList, function(x) {
     length(grep(
       "THE MODEL ESTIMATION DID NOT TERMINATE NORMALLY",
@@ -276,7 +275,7 @@ plotMixtures <- function(modelList,
   })
   mixtures[which(mixtures)] <-
     sapply(modelList[which(mixtures)], function(x) {
-      x$input$analysis$type == "mixture"
+      grepl("mixture", tolower(x$input$analysis$type))
     })
   if (!any(mixtures))
     stop(
@@ -415,7 +414,7 @@ plotMixtures <- function(modelList,
         # Check if all variables (except CPROBs) are identical across models
         var_names <-
           sapply(rawdata, function(x) {
-            names(x)[-c(which(names(x) == "C"), grep("^CPROB", names(x)))]
+            names(x)[-grep("^CPROB", names(x))]
           })
         if (!is.matrix(var_names)) {
           var_names <- table(unlist(var_names))
@@ -599,7 +598,7 @@ plotGrowthMixtures <-
     })
     mixtures[which(mixtures)] <-
       sapply(modelList[which(mixtures)], function(x) {
-        tolower(x$input$analysis$type) == "mixture"
+        grepl("mixture", tolower(x$input$analysis$type))
       })
     
     if (any(!mixtures)){
@@ -638,7 +637,8 @@ plotGrowthMixtures <-
     
     # Check if all models are growth models
     is_growth_model <- sapply(modelList, function(x){
-      any(grepl("\\|$", x$parameters[[coefficients]]$paramHeader))
+      any(grepl("\\|$", x$parameters[[coefficients]]$paramHeader))|
+      any(grepl("\\w+\\|(\\s?\\b\\w+\\b\\s?){2,}", x$input$model))
     })
     if (any(!is_growth_model)){
       if (!any(is_growth_model))
@@ -790,7 +790,7 @@ plotGrowthMixtures <-
         # Check if all variables (except CPROBs) are identical across models
         var_names <-
           sapply(rawdata, function(x) {
-            names(x)[-c(which(names(x) == "C"), grep("^CPROB", names(x)))]
+            names(x)[-grep("^CPROB", names(x))]
           })
         if (!is.matrix(var_names)) {
           var_names <- table(unlist(var_names))
@@ -1048,7 +1048,7 @@ plotMixtureDensities <-
       !is.null(x$input$analysis[["type"]])
     })
     mixtures[mixtures] <- sapply(modelList[mixtures], function(x) {
-      x$input$analysis$type == "mixture"
+      grepl("mixture", tolower(x$input$analysis$type))
     })
     if (!any(mixtures))
       stop(
@@ -1091,7 +1091,7 @@ plotMixtureDensities <-
     })
     var_names <-
       sapply(modelList, function(x) {
-        names(x$savedata)[-c(which(names(x$savedata) == "C"), grep("^CPROB", names(x$savedata)))]
+        names(x$savedata)[-grep("^CPROB", names(x$savedata))]
       })
     if (!class(var_names) == "matrix") {
       var_names <- table(unlist(var_names))
@@ -1105,9 +1105,12 @@ plotMixtureDensities <-
     # If no variables have been specified, use all variables
     if (is.null(variables)) {
       variables <- var_names[, 1]
-      variables <- variables[!variables %in% "C"]
+      class_names <- unique(sapply(modelList, function(x){
+        sapply(unlist(strsplit(x$input$variable$classes, " ")), gsub, pattern = "\\(\\d+\\)", replacement = "")
+        }))
+      variables <- variables[!toupper(variables) %in% toupper(class_names)]
     } else {
-      variables <- variables[which(toupper(variables) %in% var_names[, 1])]
+      variables <- variables[which(toupper(variables) %in% toupper(var_names[, 1]))]
     }
     rawdata <-
       lapply(modelList, function(x) {
@@ -1517,8 +1520,8 @@ plotLTA <-
       )
     if(!mplusModel$summaries$NCategoricalLatentVars > 1)
       stop(
-      "plotLTA requires a mixture model with multiple categorical latent variables as its first argument."
-    )
+        "plotLTA requires a mixture model with multiple categorical latent variables as its first argument."
+      )
     
     # Remove models which are not type "mixture"
     edges <- mplusModel$class_counts$transitionProbs
@@ -1554,9 +1557,9 @@ plotLTA <-
     n_prop$nodeID <- paste(n_prop$variable, n_prop$class, sep = ".")
     nodes <- merge(nodes, n_prop, by = "nodeID")
     
-    if (!node_labels %in% c("variable.class", "class")) {
-      nodes$nodeID[which(nodes$nodeID %in% names(node_labels))] <-
-        node_labels
+    if (length(node_labels) > 1 | !(node_labels[1] %in% c("variable.class", "class"))) {
+      nodes$nodeID[na.omit(match(names(node_labels), nodes$nodeID))] <-
+        node_labels[which(names(node_labels) %in% nodes$nodeID)]
     } else {
       if(node_labels == "class")
         nodes$nodeID <- gsub(".+?\\.", "", nodes$nodeID)
@@ -1603,7 +1606,7 @@ plotLTA <-
       ) + scale_size_continuous(range = c(1, max_edge_width))
     if (!is.null(x_labels)) {
       uselabels <- unique(nodes$variable)
-      if (!x_labels == "variable") {
+      if (length(x_labels) > 1 | !x_labels[1] == "variable") {
         uselabels[which(uselabels %in% names(x_labels))] <- x_labels
       }
       p <-

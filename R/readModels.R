@@ -27,7 +27,7 @@
 #' reduced set of output sections (especially to speed up the function when reading many files), specify the sections
 #' as a character vector from the following options:
 #'
-#' c("input", "warn_err", "sampstat", "covariance_coverage", "summaries",
+#' c("input", "warn_err", "data_summary", "sampstat", "covariance_coverage", "summaries",
 #'      "parameters", "class_counts", "indirect", "mod_indices", "residuals",
 #'      "savedata", "bparameters", "tech1", "tech3", "tech4", "tech7", "tech8",
 #'      "tech9", "tech12", "fac_score_stats", "lcCondMeans", "gh5")
@@ -40,6 +40,7 @@
 #'   \item{input}{Mplus input syntax parsed into a list by major section}
 #'   \item{warnings}{Syntax and estimation warnings as a list}
 #'   \item{errors}{Syntax and estimation errors as a list}
+#'   \item{data_summary}{Output of SUMMARY OF DATA section, including cluster sizes and ICCs}
 #'   \item{sampstat}{Sample statistics provided by OUTPUT: SAMPSTAT, if specified}
 #'   \item{covariance_coverage}{Covariance coverage matrix for checking missingness patterns}
 #'   \item{summaries}{Summary statistics from \code{extractModelSummaries}, having structure as specified by that function}
@@ -73,8 +74,8 @@
 readModels <- function(target=getwd(), recursive=FALSE, filefilter, what="all", quiet=FALSE) {
   #large wrapper function to read summaries, parameters, and savedata from one or more output files.
 
-  allsections <- c("input", "warn_err", "sampstat", "covariance_coverage", "summaries",
-      "parameters", "class_counts", "indirect", "mod_indices", "residuals",
+  allsections <- c("input", "warn_err", "data_summary", "sampstat", "covariance_coverage", "summaries",
+      "invariance_testing", "parameters", "class_counts", "indirect", "mod_indices", "residuals",
       "savedata", "bparameters", "tech1", "tech3", "tech4", "tech7", "tech8",
       "tech9", "tech12", "fac_score_stats", "lcCondMeans", "gh5")
 
@@ -125,6 +126,14 @@ readModels <- function(target=getwd(), recursive=FALSE, filefilter, what="all", 
       allFiles[[listID]]$errors <- warn_err$errors
     }
 
+    if ("data_summary" %in% what) {
+      #SUMMARY OF DATA output
+      allFiles[[listID]]$data_summary <- tryCatch(extractDataSummary(outfiletext, curfile), error=function(e) {
+          message("Error extracting SUMMARY OF DATA in output file: ", curfile); print(e)
+          return(list())
+        })
+    }
+    
     if ("sampstat" %in% what) {
       #SAMPSTAT output
       allFiles[[listID]]$sampstat <- tryCatch(extractSampstat(outfiletext, curfile), error=function(e) {
@@ -132,7 +141,7 @@ readModels <- function(target=getwd(), recursive=FALSE, filefilter, what="all", 
             return(list())
           })
     }
-
+    
     if ("covariance_coverage" %in% what) {
       #COVARIANCE COVERAGE OF DATA output
       allFiles[[listID]]$covariance_coverage <- tryCatch(extractCovarianceCoverage(outfiletext, curfile), error=function(e) {
@@ -149,6 +158,14 @@ readModels <- function(target=getwd(), recursive=FALSE, filefilter, what="all", 
           })
     }
 
+    if ("invariance_testing" %in% what) {
+      #Invariance Testing output (v8)
+      allFiles[[listID]]$invariance_testing <- tryCatch(extractInvarianceTesting(outfiletext, curfile), error=function(e) {
+          message("Error extracting invarinace testing in output file: ", curfile); print(e)
+          return(list())
+        })
+    }
+    
     if ("parameters" %in% what) {
       #Model parameters (MODEL RESULTS section)
       allFiles[[listID]]$parameters <- tryCatch(extractParameters_1file(outfiletext, curfile), error=function(e) {
