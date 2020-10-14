@@ -4,14 +4,21 @@
 \alias{runModels}
 \title{Run Mplus Models}
 \usage{
-runModels(target = getwd(), recursive = FALSE, filefilter = NULL,
-  showOutput = FALSE, replaceOutfile = "always",
-  logFile = "Mplus Run Models.log", Mplus_command = "Mplus",
-  killOnFail = TRUE, local_tmpdir = FALSE)
+runModels(
+  target = getwd(),
+  recursive = FALSE,
+  filefilter = NULL,
+  showOutput = FALSE,
+  replaceOutfile = "always",
+  logFile = "Mplus Run Models.log",
+  Mplus_command = "Mplus",
+  killOnFail = TRUE,
+  local_tmpdir = FALSE
+)
 }
 \arguments{
-\item{target}{the directory containing Mplus input files (.inp) to run
-OR the single .inp file to be run. May be a full path, relative path,
+\item{target}{a character vector where each element is a directory containing Mplus input files 
+(.inp) to run OR a single .inp file to be run. Elements may be a full path, relative path,
 or a filename within the working directory.
 Defaults to the current working directory. Example: \dQuote{C:/Users/Michael/Mplus Runs}}
 
@@ -19,8 +26,8 @@ Defaults to the current working directory. Example: \dQuote{C:/Users/Michael/Mpl
 within \code{directory}. Defaults to \code{FALSE}. Not relevant if \code{target} is a single file.}
 
 \item{filefilter}{a Perl regular expression (PCRE-compatible) specifying particular input
-files to be run within \code{directory}. See \code{regex} or \url{http://www.pcre.org/pcre.txt}
-for details about regular expression syntax. Not relevant if \code{target} is a single file.}
+files to be run among those found in \code{target}. See \code{regex} or \url{http://www.pcre.org/pcre.txt}
+for details about regular expression syntax.}
 
 \item{showOutput}{optional. If \code{TRUE}, show estimation output (TECH8)
 in the R console. Note that if run within Rgui, output will display within R,
@@ -60,6 +67,9 @@ single directory or nested within subdirectories.
   runModels("C:/Users/Michael/Mplus Runs", recursive=TRUE, showOutput=TRUE,
     replaceOutfile="modifiedDate", logFile="MH_RunLog.txt",
     Mplus_command="C:\\\\Users\\\\Michael\\\\Mplus Install\\\\Mplus51.exe")
+}
+\dontrun{
+  runModels(getwd(), filefilter = "ex8.*", logFile=NULL)
 }
 }
 \seealso{

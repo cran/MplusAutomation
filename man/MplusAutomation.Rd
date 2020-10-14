@@ -3,7 +3,6 @@
 \docType{package}
 \name{MplusAutomation}
 \alias{MplusAutomation}
-\alias{MplusAutomation-package}
 \title{Automating Mplus Model Estimation and Interpretation}
 \description{
 The MplusAutomation package leverages the flexibility of the
@@ -64,8 +63,8 @@ In addition to the major functions above, a function for converting an R data.fr
 \tabular{ll}{
 Package: \tab MplusAutomation\cr
 Type: \tab Package\cr
-Version: \tab 0.7-3\cr
-Date: \tab 2018-11-19\cr
+Version: \tab 0.8\cr
+Date: \tab 2020-09-28\cr
 License: \tab LGPL-3\cr
 LazyLoad: \tab yes\cr
 }
