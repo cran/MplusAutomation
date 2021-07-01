@@ -235,7 +235,7 @@ runModels_Interactive <- function(directory=getwd(), recursive="0",
 #' @param local_tmpdir optional. Linux/Mac for now. If \code{TRUE}, set the TMPDIR environment variable to the
 #'   location of the .inp file prior to execution. This is useful in Monte Carlo studies where many instances of Mplus
 #'   may run in parallel and we wish to avoid collisions in temporary files among processes.
-#'
+#' @param quiet optional. If \code{FALSE}, show status messages in the console.
 #' @return None. Function is used for its side effects (running models).
 #' @author Michael Hallquist
 #' @seealso \code{\link{runModels_Interactive}}
@@ -251,8 +251,8 @@ runModels_Interactive <- function(directory=getwd(), recursive="0",
 #'   runModels(getwd(), filefilter = "ex8.*", logFile=NULL)
 #' }
 runModels <- function(target=getwd(), recursive=FALSE, filefilter = NULL, showOutput=FALSE,
-    replaceOutfile="always", logFile="Mplus Run Models.log", Mplus_command="Mplus", 
-    killOnFail=TRUE, local_tmpdir=FALSE) {
+    replaceOutfile="always", logFile="Mplus Run Models.log", Mplus_command = detectMplus(), 
+    killOnFail=TRUE, local_tmpdir=FALSE, quiet = TRUE) {
 
   stopifnot(replaceOutfile %in% c("always", "never", "modifiedDate"))
 
@@ -269,7 +269,7 @@ runModels <- function(target=getwd(), recursive=FALSE, filefilter = NULL, showOu
         ## remove trailing slash, which generates file.exists error on windows: https://bugs.r-project.org/bugzilla/show_bug.cgi?id=14721
         directory <- sub("(\\\\|/)?$", "", tt, perl=TRUE)
         ## however, trailing slash is needed if at root of a drive on Windows
-        if (isTRUE(.Platform$OS.type == "windows") && isTRUE(grepl("^[a-zA-Z]:$", directory))) {
+        if (is.windows() && isTRUE(grepl("^[a-zA-Z]:$", directory))) {
           directory <- paste0(directory, "/")
         }
         
@@ -293,7 +293,7 @@ runModels <- function(target=getwd(), recursive=FALSE, filefilter = NULL, showOu
     }
     
     #apply user filter, if requested
-    if (!is.null(filefilter)) { filelist <- grep(filefilter, filefilter, perl=TRUE, value=TRUE) } 
+    if (!is.null(filefilter)) { filelist <- grep(filefilter, filelist, perl=TRUE, value=TRUE) } 
     
     #normalize paths to convert everything to absolute
     filelist <- normalizePath(filelist)
@@ -344,7 +344,7 @@ runModels <- function(target=getwd(), recursive=FALSE, filefilter = NULL, showOu
     #create a data frame consisting of the process names and pids
     #uses str split on the output of wmic to extract name and pid columns
     #depends on windows tools
-    if (isTRUE(.Platform$OS.type == "windows") && isFALSE(normalComplete) && isTRUE(killOnFail)) {
+    if (is.windows() && isFALSE(normalComplete) && isTRUE(killOnFail)) {
       processList <- ldply(strsplit(shell("wmic process get caption, processid", intern=TRUE), split="\\s+", perl=TRUE),
           function(element) {
             return(data.frame(procname=element[1], pid=element[2], stringsAsFactors = FALSE))
@@ -447,19 +447,13 @@ runModels <- function(target=getwd(), recursive=FALSE, filefilter = NULL, showOu
 
     cur_inpfile <- inpfiles[i] #tmp var used in case of attempt to kill current job
 
-    #UPDATE 21Oct2011: Since mplus has been released for linux, don't default to wine.
-    if (isTRUE(.Platform$OS.type == "unix") && isTRUE(Mplus_command == "Mplus")) {
-      if (isTRUE(Sys.info()["sysname"] == "Darwin")) Mplus_command <- "/Applications/Mplus/mplus"
-      else Mplus_command <- "mplus" #linux is case sensitive
-    }
-
     #navigate to working directory in DOS using cd command so that Mplus finds the appropriate files (support rel paths)
     #switched over to use relative filename because of problems in Mplus via Wine misinterpreting absolute paths due to forward slashes.
     #25Jul2012: Quote Mplus_command in case it's in a path with spaces.
     command <- paste("cd \"", inputSplit$directory, "\" && \"", Mplus_command, "\" \"", inputSplit$filename, "\"", sep="")
 
     #allow for divergence if the package is being run in Linux (Mplus via wine)
-    if (isTRUE(.Platform$OS.type == "windows")) {
+    if (is.windows()) {
       #Given that Mplus is a Windows program, should generally automatically remap / as \ for Windows
       #remap forward slashes to backslashes
       command <- chartr("/", "\\", command)
@@ -480,12 +474,14 @@ runModels <- function(target=getwd(), recursive=FALSE, filefilter = NULL, showOu
     }
 
     #run the model
-    cat("\nRunning model:", inputSplit$filename, "\n")
-    cat("System command:", command, "\n")
-
+    if(!quiet) cat("\nRunning model:", inputSplit$filename, "\n")
+    if(!quiet) cat("System command:", command, "\n")
     #unix system command does not have show.output.on.console or invisible parameters
     if (isTRUE(.Platform$OS.type == "windows"))	{
-      system(command, show.output.on.console = showOutput, invisible=(!showOutput), wait=TRUE)
+      the_output <- system(command, intern = TRUE, invisible=(!showOutput), wait=TRUE)
+      if(showOutput){
+        cat(the_output, sep = "\n")
+      }
     } else {
       if(isTRUE(showOutput)) stdout.value = ""
       else stdout.value = NULL

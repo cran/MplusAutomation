@@ -8,7 +8,9 @@ mixtureSummaryTable(
   modelList,
   keepCols = c("Title", "Classes", "Warnings", "AIC", "BIC", "aBIC", "Entropy",
     "T11_VLMR_PValue", "T11_LMR_PValue", "BLRT_PValue", "min_N", "max_N", "min_prob",
-    "max_prob")
+    "max_prob"),
+  sortBy = NULL,
+  ...
 )
 }
 \arguments{
@@ -21,6 +23,13 @@ list will be displayed (all others excluded). By default, \code{keepCols} is:
 \code{c("Title", "Classes", "Warnings", "AIC", "BIC", "aBIC","Entropy",
 "T11_VLMR_PValue", "T11_LMR_PValue", "BLRT_PValue", "min_N", "max_N",
 "min_prob", "max_prob")}.}
+
+\item{sortBy}{Field name (as character string) by which to sort the
+table. Typically an information criterion (e.g., "AIC" or "BIC") is used to
+sort the table. Defaults to "AICC". Set to NULL by default, so the table is
+ordered by increasing number of classes.}
+
+\item{...}{Arguments passed to \code{\link{SummaryTable}}.}
 }
 \value{
 An object of class data.frame.
@@ -40,15 +49,10 @@ enhancements for summarizing mixture models.
 }
 \examples{
 \dontrun{
-createMixtures(classes = 1:3, filename_stem = "iris", rdata = iris)
-runModels(filefilter = "iris")
-results <- readModels(filefilter = "iris")
-mixtureSummaryTable(results)
-createMixtures(classes = 1:3, filename_stem = "iris", rdata = iris,
-               OUTPUT = "tech11 tech14;")
-runModels(filefilter = "iris", replaceOutfile = "modifiedDate")
-results <- readModels(filefilter = "iris")[c(1:2)]
-mixtureSummaryTable(results)
+res <- createMixtures(classes = 1:2, filename_stem = "iris", rdata = iris,
+               OUTPUT = "tech11 tech14;",
+               run = 1L)
+mixtureSummaryTable(res)
 }
 }
 \seealso{

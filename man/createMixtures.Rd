@@ -13,6 +13,7 @@ createMixtures(
   usevariables = NULL,
   OUTPUT = "TECH11 TECH14;",
   SAVEDATA = "FILE IS {filename_stem}_{C}.dat;  SAVE = cprobabilities;",
+  quiet = TRUE,
   ...
 )
 }
@@ -49,23 +50,32 @@ is required to obtain the VLMR-test; TECH14 is required for the BLR-test.}
 recommended when conducting mixture models. The default option will often be
 adequate.}
 
+\item{quiet}{optional. If \code{TRUE}, show status messages in the console.}
+
 \item{...}{Additional arguments, passed to \link{mplusObject}, such as syntax
 for other Mplus options.}
 }
 \value{
-None. Function is used for its side effects (generating syntax).
+None, unless the argument \code{run = 1L} is specified. In that case,
+a list with elements of class \code{mplusObject} is returned. Otherwise, this
+function is used for its side effects (generating syntax).
 }
 \description{
 Dynamically creates syntax for a batch of mixture models, with intelligent
-defaults. This function is a wrapper around \code{mplusObject}, and
-additional arguments can be passed to this function using \code{...}.
-In all arguments to \code{mplusObject}, a double space (\dQuote{  }) is
-replaced with a newline character. This can be used to obtain nicely
-formatted Mplus syntax.
+defaults. This function is a wrapper around \code{mplusObject} and
+\code{mplusModeler}, and the respective arguments of those functions can be
+passed on using \code{...}. For instance, passing the argument
+\code{run = 1L} means that the models will be evaluated and returned.
+}
+\details{
 In the arguments \code{model_class_specific} and \code{SAVEDATA}, the
 character string \dQuote{\{C\}} is substituted with the correct class number.
 The character string \dQuote{\{filename_stem\}} is substituted with the
 filename stem, for example, to name savedata in line with the input files.
+
+In all arguments to \code{mplusObject}, a double space (\dQuote{  }) is
+replaced with a newline character. This can be used to obtain nicely
+formatted Mplus syntax.
 }
 \examples{
 \dontrun{
