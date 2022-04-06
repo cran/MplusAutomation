@@ -53,6 +53,11 @@ mixtureSummaryTable <- function(modelList,
                                 ),
                                 sortBy = NULL,
                                 ...) {
+  if(all(sapply(modelList, function(x){grepl("mixture", tolower(x$ANALYSIS))}))){
+    if(all(sapply(modelList, function(x){ is.null(x[["results"]])}))){
+      return(cat("These mixture models have not yet been evaluated. Add `run = 1L` to your function call to do so."))
+    }
+  }
   modelList <- tryCatch(mplus_as_list(modelList), error = function(e){
     stop("mixtureSummaryTable requires a list of mixture models as its first argument.")
   })
@@ -519,8 +524,8 @@ plotMixtures <- function(modelList,
 #' @keywords internal
 #' @examples
 #' \dontrun{
-#' mydat <- read.table("http://statmodel.com/usersguide/chap8/ex8.2.dat",
-#'                     header = FALSE)[,-6]
+#' mydat <- read.csv(
+#' system.file("extdata", "ex8.2.csv", package = "MplusAutomation"))
 #' res <- createMixtures(classes = 1:3, filename_stem = "ex8.2",
 #'                       model_overall = 
 #'                                     "i s | V1@0 V2@1 V3@2 V4@3;  i s on V5;",
@@ -1062,8 +1067,8 @@ plotMixtureDensities <-
 #' createMixtures(classes = 1:3, filename_stem = "iris", rdata = iris)
 #' }
 #' \dontrun{
-#' data <- read.table("http://statmodel.com/usersguide/chap8/ex8.13.dat")[,c(1:10)]
-#' names(data) <- c("u11", "u12", "u13", "u14", "u15", "u21", "u22", "u23", "u24", "u25")
+#' mydat <- read.csv(
+#' system.file("extdata", "ex8.13.csv", package = "MplusAutomation"))
 #' createMixtures(
 #' classes = 2,
 #' filename_stem = "dating",
@@ -1072,7 +1077,7 @@ plotMixtureDensities <-
 #' "[u11$1] (a{C});  [u12$1] (b{C});  [u13$1] (c{C});  [u14$1] (d{C});  [u15$1] (e{C});",
 #' "[u21$1] (a{C});  [u22$1] (b{C});  [u23$1] (c{C});  [u24$1] (d{C});  [u25$1] (e{C});"
 #' ),
-#' rdata = data,
+#' rdata = mydat,
 #' ANALYSIS = "PROCESSORS IS 2;  LRTSTARTS (0 0 40 20);  PARAMETERIZATION = PROBABILITY;",
 #' VARIABLE = "CATEGORICAL = u11-u15 u21-u25;"
 #' )
@@ -1212,7 +1217,7 @@ createMixtures <- function(classes = 1L,
                                                     "Mplus_command", "writeData", "hashfilename", "killOnFail", "quiet")))]
   cl_mplusmodeler[[1]] <- quote(mplusModeler)
   
-  if(!"run" %in% names(cl_mplusmodeler)) cl_mplusmodeler$run <- 0L
+  if(!"run" %in% names(cl_mplusmodeler)) cl_mplusmodeler$run <- 1L
   if(!"check" %in% names(cl_mplusmodeler)) cl_mplusmodeler[["check"]] <- FALSE
   if(!"varwarnings" %in% names(cl_mplusmodeler)) cl_mplusmodeler[["varwarnings"]] <- TRUE
   if(!"Mplus_command" %in% names(cl_mplusmodeler)) cl_mplusmodeler[["Mplus_command"]] <- "Mplus"
@@ -1274,8 +1279,8 @@ createMixtures <- function(classes = 1L,
 #' @keywords internal
 #' @examples
 #' \dontrun{
-#' data <- read.table("http://statmodel.com/usersguide/chap8/ex8.13.dat")[,c(1:10)]
-#' names(data) <- c("u11", "u12", "u13", "u14", "u15", "u21", "u22", "u23", "u24", "u25")
+#' mydat <- read.csv(
+#' system.file("extdata", "ex8.13.csv", package = "MplusAutomation"))
 #' createMixtures(
 #' classes = 2,
 #' filename_stem = "dating",
@@ -1284,7 +1289,7 @@ createMixtures <- function(classes = 1L,
 #' "[u11$1] (a{C});  [u12$1] (b{C});  [u13$1] (c{C});  [u14$1] (d{C});  [u15$1] (e{C});",
 #' "[u21$1] (a{C});  [u22$1] (b{C});  [u23$1] (c{C});  [u24$1] (d{C});  [u25$1] (e{C});"
 #' ),
-#' rdata = data,
+#' rdata = mydat,
 #' ANALYSIS = "PROCESSORS IS 2;  LRTSTARTS (0 0 40 20);  PARAMETERIZATION = PROBABILITY;",
 #' VARIABLE = "CATEGORICAL = u11-u15 u21-u25;"
 #' )

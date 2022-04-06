@@ -646,7 +646,7 @@ getOutFileList <- function(target, recursive=FALSE, filefilter) {
   
   #determine whether target is a file or a directory
   if (file.exists(target)) {
-    if (file.info(target)$isdir == TRUE) {
+    if (isTRUE(file.info(target)$isdir)) {
       
       #obtain list of all files in the specified directory
       filelist <- list.files(path=target, recursive=recursive, full.names=TRUE)
@@ -669,7 +669,7 @@ getOutFileList <- function(target, recursive=FALSE, filefilter) {
       outfiles <- target
     }
   }
-  else stop("Specified target does not exist.\n  Target: ", target)
+  else stop("Specified target does not exist.\n  Target: ", normalizePath(target))
   
   if (length(outfiles) == 0) {
     warning("No output files detected in this directory.")
@@ -1019,40 +1019,21 @@ separateHyphens <- function(cmd) {
 #' mplusAvailable(silent = TRUE)
 #' mplusAvailable(silent = FALSE)
 mplusAvailable <- function(silent = TRUE) {
-  os <- .Platform$OS.type
-  if (identical(os, "windows")) {
-    res <- system2("where", args = "mplus.exe",
-        stdout = FALSE, stderr = FALSE)
-    note <- paste0(
-        "Mplus is either not installed or could not be found\n",
-        "Try installing Mplus or if Mplus is already installed, \n",
-        "make sure it can be found on your PATH, try\n\n",
-        "Windows 10 and Windows 8:\n",
-        " (1) In Search, search for and then select: System (Control Panel)\n",
-        " (2) Click the Advanced system settings link.\n",
-        " (3) Click Environment Variables ...\n",
-        " (4) In the Edit System Variable (or New System Variable ) window,\n",
-        " (5) specify the value of the PATH environment variable...\n",
-        " (6) Close and reopen R and run:\n\n",
-        "mplusAvailable(silent=FALSE)",
-        "\n")
+  res <- tryCatch(
+    detectMplus(),
+    error = function(e) e)
+
+  if (isTRUE(inherits(res, "error"))) {
+    if (isFALSE(silent)) {
+      message(res$message)
+    }
+    return(1L)
+  } else {
+    if (isFALSE(silent) && isTRUE(is.character(res))) {
+      message(sprintf("The command name for Mplus is\n%s", res))
+    }
+    return(0L)
   }
-  if (identical(os, "unix")) {
-    res <- system2("type", args = "mplus",
-        stdout = FALSE, stderr = FALSE)
-    note <-     paste0(
-        "Mplus is either not installed or could not be found\n",
-        "Try installing Mplus or if it already is installed,\n",
-        "making sure it can be found by adding it to your PATH or adding a symlink\n\n",
-        "To see directories on your PATH, From a terminal, run:\n\n",
-        "echo $PATH",
-        "\n\nthen try something along these lines:\n\n",
-        "sudo ln -s /path/to/mplus/on/your/system /directory/on/your/PATH",
-        "\n")
-  }
-  
-  if (!silent) message(c("Mplus is installed and can be found", note)[res+1])
-  return(invisible(res))
 }
 
 #' Check whether a useable function argument was provided
@@ -1174,7 +1155,13 @@ cd <- function(base, pre, num) {
 #' 
 #' MplusAutomation:::htmlout("https://statmodel.com/usersguide/chap3/ex3.1.html")
 htmlout <- function(url) {
-  x <- readLines(url)
+  x <- tryCatch(readLines(url, warn = FALSE), error=function(e) { return(NULL) })
+  
+  # fail gracefully on URL read error, per CRAN guidelines
+  if (is.null(x)) { 
+    message("Cannot load Mplus output from html file: ", url)
+    return(NA_character_)
+  }
   start <- which(grepl("<PRE>", x, ignore.case = TRUE))
   end <-  which(grepl("</PRE>", x, ignore.case = TRUE))
   out <- x[(start + 1L):(end - 1L)]
@@ -1306,6 +1293,7 @@ detectMplus <- function() {
       } else {
         ## if Mplus not found on path or program files, see if Mplus demo is available
         suppressWarnings(mplus <- system("where Mpdemo8", intern = TRUE, ignore.stderr = TRUE))
+
         ## if Mpdemo8 command found and is a valid file, then just use "Mpdemo8" as the command
         if (isTRUE(length(mplus) > 0) && isTRUE(file.exists(mplus))) {
           mplus <- "Mpdemo8"
@@ -1314,7 +1302,20 @@ detectMplus <- function() {
             ## if mplus demo in program files just not path, use full path to mplus demo to run it
             mplus <- "C:\\Program Files\\Mplus Demo\\Mpdemo8.exe"          
           } else {
-            stop("Mplus and Mpdemo8 not found on the system path or in the 'usual' Program Files location. Ensure Mplus or the Mplus Demo are installed and that the location of the .exe file is on your system path.")            
+            note <- paste0(
+              "Mplus and Mpdemo8 are either not installed or could not be found\n",
+              "Try installing Mplus or Mplus Demo. If Mplus or Mplus Demo are already installed, \n",
+              "make sure one can be found on your PATH. The following may help\n\n",
+              "Windows 10:\n",
+              " (1) In Search, search for and then select: System (Control Panel)\n",
+              " (2) Click the Advanced system settings link.\n",
+              " (3) Click Environment Variables ...\n",
+              " (4) In the Edit System Variable (or New System Variable ) window,\n",
+              " (5) specify the value of the PATH environment variable...\n",
+              " (6) Close and reopen R and run:\n\n",
+              "mplusAvailable(silent=FALSE)",
+              "\n")
+            stop(note)
           }
         }
       }
@@ -1323,7 +1324,7 @@ detectMplus <- function() {
 
   if (identical(ostype, "macos")) {
     ## try to find Mplus command on the path
-    suppressWarnings(mplus <- system("which mplus", intern = TRUE))
+    suppressWarnings(mplus <- system("which mplus", intern = TRUE, ignore.stderr = TRUE))
 
     ## if Mplus command found and is a valid file, then just use "mplus" as the command
     if (isTRUE(length(mplus) > 0) && isTRUE(file.exists(mplus))) {
@@ -1333,7 +1334,7 @@ detectMplus <- function() {
         mplus <- "/Applications/Mplus/mplus"
       } else {
         ## if Mplus not found on path or in applications, see if Mplus demo is available
-        suppressWarnings(mplus <- system("where mpdemo", intern = TRUE))
+        suppressWarnings(mplus <- system("which mpdemo", intern = TRUE, ignore.stderr = TRUE))
         ## if mpdemo command found and is a valid file, then just use "mpdemo" as the command
         if (isTRUE(length(mplus) > 0) && isTRUE(file.exists(mplus))) {
           mplus <- "mpdemo"
@@ -1349,35 +1350,56 @@ detectMplus <- function() {
   }
   
   if (identical(ostype, "linux")) {
+    failure_note <- paste0(
+      "Mplus is either not installed or could not be found\n",
+      "Try installing Mplus or if it already is installed,\n",
+      "making sure it can be found by adding it to your PATH or adding a symlink\n\n",
+      "To see directories on your PATH, From a terminal, run:\n\n",
+      "  echo $PATH",
+      "\n\nthen try something along these lines:\n\n",
+      "  sudo ln -s /path/to/mplus/on/your/system /directory/on/your/PATH",
+      "\n"
+    )
+
+    mplus_found <- FALSE
+
     ## try to find Mplus command on the path
-    suppressWarnings(mplus <- system("which mplus", intern = TRUE))
+    suppressWarnings(mplus <- system("which mplus", intern = TRUE, ignore.stderr = TRUE))
 
     ## if Mplus command found and is a valid file, then just use "mplus" as the command
     if (isTRUE(length(mplus) > 0) && isTRUE(file.exists(mplus))) {
       mplus <- "mplus"
+      mplus_found <- TRUE
     } else {
       if (isTRUE(dir.exists("/opt/mplus"))) {
         test <- file.path(
-          list.dirs("/opt/mplus", recursive = FALSE)[1],
-          "mplus")
+          list.dirs("/opt/mplus", recursive = FALSE)[1], # Linux installation defaults to /opt/mplus/<version_num>
+          "mplus"
+        )
         if (isTRUE(file.exists(test))) {
           mplus <- test
-        } else {
+          mplus_found <- TRUE
+        }
+      } else {
           ## if Mplus not found on path or opt, see if Mplus demo is available
-          suppressWarnings(mplus <- system("where mpdemo", intern = TRUE))
+          suppressWarnings(mplus <- system("which mpdemo", intern = TRUE, ignore.stderr = TRUE))
+
           ## if mpdemo command found and is a valid file, then just use "mpdemo" as the command
           if (isTRUE(length(mplus) > 0) && isTRUE(file.exists(mplus))) {
             mplus <- "mpdemo"
-          } else {
-            stop("mplus and mpdemo not found on the system path or in the 'usual' /opt/mplus/ location. Ensure Mplus or the Mplus Demo are installed and that the location of the command is on your system path.")
+            mplus_found <- TRUE
           }
-        }
       }
+    }
+
+    if (isFALSE(mplus_found)) {
+      stop(failure_note)
     }
   }
 
   if (identical(ostype, "unknown")) {
     stop("OS Type not known. Cannot auto detect Mplus command name. You must specify it.")
   }
+
   return(mplus)  
 }
