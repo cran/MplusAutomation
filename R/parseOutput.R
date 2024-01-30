@@ -466,14 +466,14 @@ divideIntoFields <- function(section.text, required) {
     #thus, split on spaces and assume that first element is lhs, drop second element if IS/ARE/=, and assume remainder is rhs
     
     #but if user uses equals sign, then spaces will not always be present (e.g., usevariables=x1-x10)
-    if ( (leadingEquals <- regexpr("^\\s*[A-Za-z]+[A-Za-z_-]*\\s*(=)", cmd[1L], perl=TRUE))[1L] > 0) {
+    if ( (leadingEquals <- regexpr("^\\s*[A-Za-z]+[A-Za-z_\\-\\d]*\\s*(=)", cmd[1L], perl=TRUE))[1L] > 0) {
       cmdName <- trimSpace(substr(cmd[1L], 1, attr(leadingEquals, "capture.start") - 1))
       cmdArgs <- trimSpace(substr(cmd[1L], attr(leadingEquals, "capture.start") + 1, nchar(cmd[1L])))
     } else {
       cmd.spacesplit <- strsplit(trimSpace(cmd[1L]), "\\s+", perl=TRUE)[[1L]]
       
       if (length(cmd.spacesplit) < 2L) {
-        #for future: make room for this function to prase things like just TECH13 (no rhs)
+        #for future: make room for this function to parse things like just TECH13 (no rhs)
       } else {
         cmdName <- trimSpace(cmd.spacesplit[1L])
         if (length(cmd.spacesplit) > 2L && tolower(cmd.spacesplit[2L]) %in% c("is", "are")) {
@@ -507,7 +507,6 @@ divideIntoFields <- function(section.text, required) {
 #' @examples
 #' # make me!!!
 extractWarningsErrors_1file <- function(outfiletext, filename, input) {
-  
   warnerr <- list(warnings = list(), errors = list())
   class(warnerr$errors) <- c("mplus.errors", "list")
   class(warnerr$warnings) <- c("mplus.warnings", "list")
@@ -525,6 +524,15 @@ extractWarningsErrors_1file <- function(outfiletext, filename, input) {
   startInputWarnErr <- attr(input, "end.line") + 1L #first eligible line is after input section
   endInputWarnErr <- grep("^\\s*(INPUT READING TERMINATED NORMALLY|\\*\\*\\* WARNING.*|\\d+ (?:ERROR|WARNING)\\(S\\) FOUND IN THE INPUT INSTRUCTIONS|\\*\\*\\* ERROR.*)\\s*$", outfiletext, ignore.case=TRUE, perl=TRUE)
   
+
+# Check for fatal errors --------------------------------------------------
+
+  fatalerror <- grep("FATAL ERROR", outfiletext, fixed = T)
+  if(isTRUE(length(fatalerror) > 0)){
+    if(fatalerror > tail(endInputWarnErr, 1)){
+      endInputWarnErr <- c(endInputWarnErr, length(outfiletext))
+    }
+  }
   w <- 1 #counters for warnings and errors lists
   e <- 1
   
@@ -534,10 +542,10 @@ extractWarningsErrors_1file <- function(outfiletext, filename, input) {
     #To identify input warnings/errors section, need to go to first blank line after the final warning or error. (look in next 100 lines)
     lastWarn <- endInputWarnErr[length(endInputWarnErr)]
     blank <- which(outfiletext[lastWarn:(lastWarn + 100 )] == "")[1L] + lastWarn - 1
-    
+    if(is.na(blank)) blank <- length(outfiletext)+1
     warnerrtext <- outfiletext[startInputWarnErr[1L]:(blank-1)]
     
-    lines <- friendlyGregexpr("^\\s*(\\*\\*\\* WARNING|\\*\\*\\* ERROR).*\\s*$", warnerrtext, perl=TRUE)
+    lines <- friendlyGregexpr("^\\s*(\\*\\*\\* WARNING|\\*\\*\\* ERROR|\\*\\*\\* FATAL ERROR).*\\s*$", warnerrtext, perl=TRUE)
     
     if (!is.null(lines)) {
       for (l in 1:nrow(lines)) {
@@ -550,7 +558,7 @@ extractWarningsErrors_1file <- function(outfiletext, filename, input) {
         if (substr(lines[l,"tag"], 1, 11) == "*** WARNING") {
           warnerr$warnings[[w]] <- warn.err.body
           w <- w + 1
-        } else if (substr(lines[l,"tag"], 1, 9) == "*** ERROR") {
+        } else if ((substr(lines[l,"tag"], 1, 9) == "*** ERROR") | (grepl("FATAL ERROR", lines[l,"tag"], fixed = TRUE))) {
           warnerr$errors[[e]] <- warn.err.body
           splittag <- strsplit(lines[l,"tag"], "\\s+", perl=TRUE)[[1L]]
           if (length(splittag) > 3L && splittag[3L] == "in") {
@@ -706,6 +714,7 @@ extractInput_1file <- function(outfiletext, filename) {
   input$variable <- divideIntoFields(input$variable)
   input$analysis <- divideIntoFields(input$analysis)
   input$montecarlo <- divideIntoFields(input$montecarlo)
+  input$savedata <- divideIntoFields(input$savedata)
   
   
   attr(input, "start.line") <- startInput
@@ -939,9 +948,9 @@ extractSummaries_1file <- function(outfiletext, filename, input)
   
   #calculate adjusted AIC per Burnham & Anderson(2004), which is better than AIC for non-nested model selection
   #handle AICC calculation, requires AIC, Parameters, and observations
-  if (!is.null(arglist$Parameters) && !is.na(arglist$Parameters) &&
-    !is.null(arglist$AIC) && !is.na(arglist$AIC) &&
-    !is.null(arglist$Observations) && !is.na(arglist$Observations)) {
+  if (!is.null(arglist$Parameters) && !all(is.na(arglist$Parameters)) &&
+    !is.null(arglist$AIC) && !all(is.na(arglist$AIC)) &&
+    !is.null(arglist$Observations) && !all(is.na(arglist$Observations))) {
     arglist$AICC <- arglist$AIC + (2*arglist$Parameters*(arglist$Parameters+1))/(arglist$Observations-arglist$Parameters-1)
   } else {
     arglist$AICC <- NA_real_
@@ -1053,20 +1062,6 @@ extractModelSummaries <- function(target=getwd(), recursive=FALSE, filefilter) {
   return(invisible(NULL))
 }
 
-
-#' Add header to saved data
-#'
-#' Description
-#'
-#' @param outfile The output file
-#' @param director The current working directory by default
-#' @return NULL
-#' @keywords internal
-#' @examples
-#' # make me!!!
-addHeaderToSavedata <- function(outfile, directory=getwd()) {
-  
-}
 
 #' Helper subfunction to extract one section of OUTPUT: RESIDUALS
 #' Can be called multiple times, as in the case of invariance testing
@@ -1487,7 +1482,7 @@ extractCovarianceCoverage <- function(outfiletext, filename) {
   
   matchlines <- attr(covcoverageSubsections, "matchlines")
   
-  if (length(covcoverageSubsections) == 0 || is.na(covcoverageSubsections)) { #See UG ex9.7.out
+  if (length(covcoverageSubsections) == 0 || all(is.na(covcoverageSubsections))) { #See UG ex9.7.out
     message("No PROPORTION OF DATA PRESENT sections found within COVARIANCE COVERAGE OF DATA output.")
     return(covcoverageList)
   } else if (length(covcoverageSubsections) > 1) {
@@ -1837,58 +1832,59 @@ extractTech10 <- function(outfiletext, filename) {
   
   if (is.null(bivarFit)) return(tech10List) 
   
-  # Build data structures
-  bivarFitData <- matrix(nrow=length(bivarFit), ncol=7)
-  bivarFitStats <- matrix(nrow=0, ncol=4)
-  
   # Skip header lines
   bivarFit <- bivarFit[6:length(bivarFit)]
+  
+  # Find the lines numbers with the variable name pairs
+  #  (and add location for the end of text, for the ldply below)
+  var.lines <- c(grep("^\\s{5}\\S{1,8}\\s+\\S{1,8}", bivarFit), length(bivarFit))
 
-  vars <- NULL
-  lastPearson <- NULL
-  mPos <- 1
+  # Iterate over each set of variable pairs to extract values
+  res <- ldply(1:(length(var.lines)-1), function(i) {
+    # Get start and end line numbers for this pair
+    v.line <- var.lines[i]
+    end <- var.lines[i+1] - 1
     
-  for (l in 1:length(bivarFit)) {
-    if (grepl("^\\s*$", bivarFit[l], perl = TRUE)) { next }
+    # Split the var names into a vector
+    vars <- unlist(strsplit(trimSpace(bivarFit[v.line]), "\\s+", perl = TRUE))
     
-    if (grepl("^\\s{5}\\S", bivarFit[l], perl = TRUE)) {
-      # Parse new vars line
-      vars <- unlist(strsplit(trimSpace(bivarFit[l]), "\\s+", perl = TRUE))
-    }
-    else if (grepl("Bivariate (Pearson|Log-Likelihood) Chi-Square", bivarFit[l], perl = TRUE)) {
-      if (grepl("Overall", bivarFit[l], perl = TRUE)) { next } # Skip 'overall' values
-      
-      m <- unlist(regmatches(bivarFit[l], regexec("Bivariate (Pearson|Log-Likelihood) Chi-Square\\s+(\\S+)", bivarFit[l], perl = TRUE)))
-      
-      if (m[2] == 'Pearson') {
-        lastPearson <- m[3]
+    lines.idxs <- (v.line+1):end
+    
+    # Parse remaining lines for this variable pair
+    ldply(lines.idxs, function(line) {
+      if (grepl("^\\s+Category \\d+\\s+Category \\d+", bivarFit[line], perl = TRUE)) {
+        vals <- unlist(strsplit(trimSpace(bivarFit[line]), "\\s{2,}", perl = TRUE))
+        
+        c(vars, vals)
       }
-      else {
-        bivarFitStats <- rbind(bivarFitStats, c(vars, lastPearson, m[3]))
+      else if (grepl("^\\s+Bivariate (Pearson|Log-Likelihood) Chi-Square", bivarFit[line], perl = TRUE)) {
+        m <- unlist(regmatches(bivarFit[line], regexec("Bivariate (Pearson|Log-Likelihood) Chi-Square\\s+(\\S+)", bivarFit[line], perl = TRUE)))
+        
+        c(vars, "Summary", m[2:3], NA, NA)
       }
-    }
-    else {
-      values <- unlist(strsplit(trimSpace(bivarFit[l]), "\\s{2,}", perl = TRUE))
-      
-      bivarFitData[mPos,] <-c(vars,values)
-      mPos <- mPos + 1
-    }
-  }
+      else if (grepl("^\\s+Number of Significant Standardized Residuals", bivarFit[line], perl = TRUE)) {
+        m <- unlist(regmatches(bivarFit[line], regexec("Number of Significant Standardized Residuals\\s+(\\S+)", bivarFit[line], perl = TRUE)))
+        
+        c(vars, "Summary", "Significant", m[2], NA, NA)
+      }      
+    })
+  })
   
-  # Remove empty rows, and convert to data.frame
-  bivarFitData <- bivarFitData[rowSums(is.na(bivarFitData)) != ncol(bivarFitData),]
-  bivarFitData <- as.data.frame( bivarFitData, stringsAsFactors = FALSE )
-  names(bivarFitData) <- c("var1", "var2", "cat1", "cat2", "h0", "h1", "z")
+  # Split out the "summary" lines from the bivariate data
+  bivarFitData <- res[res$V3 != "Summary",]
+  bivarFitStats <- res[res$V3 == "Summary", c("V1", "V2", "V4", "V5")]
   
-  # Fix data types
-  bivarFitData[,c("h0", "h1", "z")] <- as.numeric(unlist(bivarFitData[,c("h0", "h1", "z")]))
+  names(bivarFitData) <- c("var1", "var2", "cat1", "cat2", "h1", "h0", "z")
+  rownames(bivarFitData) <- NULL
   
-  bivarFitStats <- setNames(data.frame(bivarFitStats, stringsAsFactors = FALSE), c("var1","var2","pearson","log-likelihood"))
-  bivarFitStats[,c("pearson","log-likelihood")] <- as.numeric(unlist(bivarFitStats[,c("pearson","log-likelihood")]))
+  names(bivarFitStats) <- c("var1", "var2", "stat", "value")
+  bivarFitStats <- reshape(bivarFitStats, idvar = c("var1", "var2"), timevar = "stat", direction = "wide"
+                           , varying = c("Pearson", "Log-Liklihood", "Significant"))
+  rownames(bivarFitStats) <- NULL
+  attr(bivarFitStats, "reshapeWide") <- NULL
   
   tech10List$bivar_model_fit_info <- bivarFitData
   tech10List$bivar_chi_square <- bivarFitStats
-  
   
   return(tech10List)
   
@@ -2051,10 +2047,10 @@ extractClassCounts <- function(outfiletext, filename, summaries) {
   
   countlist <- list()
   
-  if (is.null(summaries) || missing(summaries) || summaries$NCategoricalLatentVars==1 || is.na(summaries$NCategoricalLatentVars)) {
+  if (is.null(summaries) || missing(summaries) || isTRUE(summaries$NCategoricalLatentVars[1L]==1) || all(is.na(summaries$NCategoricalLatentVars))) {
     #Starting in Mplus v7.3 and above, formatting of the class counts appears to have changed...
     #Capture the alternatives here
-    if (is.null(summaries) || missing(summaries) || is.null(summaries$Mplus.version) || as.numeric(summaries$Mplus.version) < 7.3) {
+    if (is.null(summaries) || missing(summaries) || is.null(summaries$Mplus.version) || as.numeric(summaries$Mplus.version[1L]) < 7.3) {
       modelCounts <- getSection("^FINAL CLASS COUNTS AND PROPORTIONS FOR THE LATENT CLASSES$", outfiletext)
       ppCounts <- getSection("^FINAL CLASS COUNTS AND PROPORTIONS FOR THE LATENT CLASS PATTERNS$", outfiletext)
       mostLikelyCounts <- getSection("^CLASSIFICATION OF INDIVIDUALS BASED ON THEIR MOST LIKELY LATENT CLASS MEMBERSHIP$", outfiletext)

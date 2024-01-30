@@ -192,7 +192,6 @@ testBParamCompoundConstraint <- function(bparams, test) {
 #' @examples
 #' ## make me
 friendlyGregexpr <- function(pattern, charvector, perl=TRUE) {
-  #require(plyr)
   #now create data frame documenting the start and end of all tags
   #rather than ldply, need a usual loop to track element number (in cases where charvector is a vector)
   regexpMatches <- gregexpr(pattern, charvector, perl=perl)
@@ -385,6 +384,7 @@ parse_into_sections <- function(outfiletext) {
       "BRANT WALD TEST FOR PROPORTIONAL ODDS",
       "BETWEEN-LEVEL FACTOR SCORE COMPARISONS",
       "ALTERNATIVE PARAMETERIZATIONS FOR THE CATEGORICAL LATENT VARIABLE REGRESSION",
+      "ODDS RATIO FOR THE ALTERNATIVE PARAMETERIZATIONS FOR THE CATEGORICAL LATENT VARIABLE REGRESSION",
       "LATENT CLASS ODDS RATIO RESULTS", "LOGRANK OUTPUT", "STANDARDIZED MODEL RESULTS",
       "WITHIN-LEVEL STANDARDIZED MODEL RESULTS FOR CLUSTER \\d+",
       "R-SQUARE", "QUALITY OF NUMERICAL RESULTS", "QUALITY OF NUMERICAL RESULTS FOR .*", "TECHNICAL OUTPUT", "TECHNICAL \\d+ OUTPUT",
@@ -416,6 +416,7 @@ parse_into_sections <- function(outfiletext) {
       "CORRELATIONS AND MEAN SQUARE ERROR OF THE TRUE FACTOR VALUES AND THE FACTOR SCORES",
       "RESULTS SAVING INFORMATION", "SAMPLE STATISTICS FOR ESTIMATED FACTOR SCORES", "DIAGRAM INFORMATION",
       "BIVARIATE MODEL FIT INFORMATION",
+      "UNIVARIATE DISTRIBUTION FIT FOR CLASS \\d+",
       "Beginning Time:\\s*\\d+:\\d+:\\d+", "MUTHEN & MUTHEN",
       "EXPLORATORY FACTOR ANALYSIS WITH [1-9]\\d* FACTOR\\(S\\):",
       "EXPLORATORY FACTOR ANALYSIS WITH \\d+ WITHIN FACTOR\\(S\\) AND \\d+ BETWEEN FACTOR\\(S\\):",

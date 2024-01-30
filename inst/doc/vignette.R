@@ -1,4 +1,4 @@
-## ---- eval=FALSE, echo=TRUE---------------------------------------------------
+## ----eval=FALSE, echo=TRUE----------------------------------------------------
 #  
 #  install.packages("MplusAutomation")
 #  
@@ -13,12 +13,12 @@ library(MplusAutomation)
 sessionInfo()
 
 
-## ---- eval=FALSE--------------------------------------------------------------
+## ----eval=FALSE---------------------------------------------------------------
 #  
 #  update.packages(ask=FALSE, checkBuilt=TRUE)
 #  
 
-## ---- eval=FALSE, echo=TRUE---------------------------------------------------
+## ----eval=FALSE, echo=TRUE----------------------------------------------------
 #  
 #  prepareMplusData(
 #    my_data,
@@ -36,19 +36,19 @@ data(mtcars)
 mtcars$gear <- factor(mtcars$gear)
 prepareMplusData(mtcars, "mtcars.dat", dummyCode = c("cyl", "am"))
 
-## ---- eval=FALSE, echo = TRUE-------------------------------------------------
+## ----eval=FALSE, echo = TRUE--------------------------------------------------
 #  
 #  runModels("C:/Program Files/Mplus/Mplus Examples/Addendum Examples")
 #  
 
-## ---- eval=FALSE, echo=TRUE---------------------------------------------------
+## ----eval=FALSE, echo=TRUE----------------------------------------------------
 #  
 #  runModels(
 #    "C:/Data_Analysis/ComparingLCAvCFA",
 #    recursive=TRUE)
 #  
 
-## ---- eval=FALSE, echo=TRUE---------------------------------------------------
+## ----eval=FALSE, echo=TRUE----------------------------------------------------
 #  
 #  runModels(
 #    "C:/Data_Analysis/ComparingLCAvCFA",
@@ -56,7 +56,7 @@ prepareMplusData(mtcars, "mtcars.dat", dummyCode = c("cyl", "am"))
 #    logFile="C:/CFALCA-Comparison-Log.txt")|
 #  
 
-## ---- eval=FALSE, echo=TRUE---------------------------------------------------
+## ----eval=FALSE, echo=TRUE----------------------------------------------------
 #  
 #  runModels(
 #    "C:/Data_Analysis/ComparingLCAvCFA",
@@ -64,7 +64,7 @@ prepareMplusData(mtcars, "mtcars.dat", dummyCode = c("cyl", "am"))
 #    logFile=NULL)
 #  
 
-## ---- eval=FALSE, echo=TRUE---------------------------------------------------
+## ----eval=FALSE, echo=TRUE----------------------------------------------------
 #  
 #  runModels(
 #    "C:/Data_Analysis/ComparingLCAvCFA",
@@ -72,7 +72,7 @@ prepareMplusData(mtcars, "mtcars.dat", dummyCode = c("cyl", "am"))
 #    replaceOutfile="never")
 #  
 
-## ---- eval=FALSE, echo=TRUE---------------------------------------------------
+## ----eval=FALSE, echo=TRUE----------------------------------------------------
 #  
 #  runModels(
 #    "C:/Data_Analysis/ComparingLCAvCFA",
@@ -80,7 +80,7 @@ prepareMplusData(mtcars, "mtcars.dat", dummyCode = c("cyl", "am"))
 #    replaceOutfile="modifiedDate")
 #  
 
-## ---- eval=FALSE, echo=TRUE---------------------------------------------------
+## ----eval=FALSE, echo=TRUE----------------------------------------------------
 #  
 #  runModels(
 #    "C:/Data_Analysis/ComparingLCAvCFA",
@@ -88,17 +88,17 @@ prepareMplusData(mtcars, "mtcars.dat", dummyCode = c("cyl", "am"))
 #    showOutput=TRUE)
 #  
 
-## ---- eval=FALSE, echo=TRUE---------------------------------------------------
+## ----eval=FALSE, echo=TRUE----------------------------------------------------
 #  
 #  runModels_Interactive()
 #  
 
-## ---- echo = FALSE, out.width = "80%", fig.pos="h", fig.cap = "Figure. Example of using runModels() in an interactive graphical interface."----
+## ----echo = FALSE, out.width = "80%", fig.pos="h", fig.cap = "Figure. Example of using runModels() in an interactive graphical interface."----
 
 knitr::include_graphics("runModels_Interactive-Screenshot.png")
 
 
-## ---- eval=FALSE, echo=TRUE---------------------------------------------------
+## ----eval=FALSE, echo=TRUE----------------------------------------------------
 #  
 #  allOutput <- readModels(
 #    "C:/Data_Files/CFANesting",
@@ -112,28 +112,28 @@ knitr::include_graphics("runModels_Interactive-Screenshot.png")
 #    sapply(allOutput,"[", "summaries"))
 #  
 
-## ---- eval=FALSE, echo=TRUE---------------------------------------------------
+## ----eval=FALSE, echo=TRUE----------------------------------------------------
 #  
 #  mySummaries <- extractModelSummaries(
 #    "C:/Data_Analysis/ComparingLCAvCFA",
 #    recursive = TRUE)
 #  
 
-## ---- eval=FALSE, echo=FALSE--------------------------------------------------
+## ----eval=FALSE, echo=FALSE---------------------------------------------------
 #  
 #  summaryStats <- extractModelSummaries(
 #    "C:/Program Files/Mplus/Mplus Examples/User's Guide Examples/Outputs",
 #    filefilter="ex4.*")
 #  
 
-## ---- eval=FALSE, echo=TRUE---------------------------------------------------
+## ----eval=FALSE, echo=TRUE----------------------------------------------------
 #  
 #  summaryStats <- extractModelSummaries(
 #    "C:/Data_Analysis/Multiclass Models",
 #    filefilter="[123]{1}-class.*Threshold.*")
 #  
 
-## ---- eval=FALSE, echo=TRUE---------------------------------------------------
+## ----eval=FALSE, echo=TRUE----------------------------------------------------
 #  
 #  showSummaryTable(
 #    summaryStats,
@@ -141,7 +141,7 @@ knitr::include_graphics("runModels_Interactive-Screenshot.png")
 #    sortBy = "AIC")
 #  
 
-## ---- eval=FALSE, echo=TRUE---------------------------------------------------
+## ----eval=FALSE, echo=TRUE----------------------------------------------------
 #  
 #  showSummaryTable(
 #    summaryStats,
@@ -149,7 +149,7 @@ knitr::include_graphics("runModels_Interactive-Screenshot.png")
 #    sortBy = "CFI")
 #  
 
-## ---- eval=FALSE, echo=TRUE---------------------------------------------------
+## ----eval=FALSE, echo=TRUE----------------------------------------------------
 #  
 #  HTMLSummaryTable(
 #    summaryStats,
@@ -159,7 +159,7 @@ knitr::include_graphics("runModels_Interactive-Screenshot.png")
 #    sortBy = "AIC")
 #  
 
-## ---- eval=FALSE, echo=TRUE---------------------------------------------------
+## ----eval=FALSE, echo=TRUE----------------------------------------------------
 #  
 #  myLatexTable <- LatexSummaryTable(
 #    summaryStats,
@@ -169,13 +169,13 @@ knitr::include_graphics("runModels_Interactive-Screenshot.png")
 #    label="CFALCATab")
 #  
 
-## ---- eval=FALSE, echo=TRUE---------------------------------------------------
+## ----eval=FALSE, echo=TRUE----------------------------------------------------
 #  
 #  modelResults <- extractModelParameters(
 #    "C:/Data_Analysis/Mplus Output.out")
 #  
 
-## ---- eval=FALSE, echo=TRUE---------------------------------------------------
+## ----eval=FALSE, echo=TRUE----------------------------------------------------
 #  
 #  unstandardizedResults <- modelResults$unstandardized
 #  
@@ -183,14 +183,14 @@ knitr::include_graphics("runModels_Interactive-Screenshot.png")
 #  standardizedResults <- modelResults[["stdyx.standardized"]]
 #  
 
-## ---- eval=FALSE, echo=TRUE---------------------------------------------------
+## ----eval=FALSE, echo=TRUE----------------------------------------------------
 #  
 #  allModelParameters <- extractModelParameters(
 #    "C:/Data_Analysis/ComparingLCAvCFA",
 #    recursive = TRUE)
 #  
 
-## ---- eval=FALSE, echo=TRUE---------------------------------------------------
+## ----eval=FALSE, echo=TRUE----------------------------------------------------
 #  names(allModelParameters)
 #  
 #  ## ComparingLCAvCFA.LCA.1.class.LCA.out
@@ -201,24 +201,24 @@ knitr::include_graphics("runModels_Interactive-Screenshot.png")
 #  ## ComparingLCAvCFA.CFA.3.factor.CFA.out
 #  
 
-## ---- eval=FALSE, echo=TRUE---------------------------------------------------
+## ----eval=FALSE, echo=TRUE----------------------------------------------------
 #  
 #  TwoFacCFA.STDYX <- allModelParameters$ComparingLCAvCFA.CFA.2.factor.CFA.out$stdyx.standardized
 #  
 
-## ---- eval=FALSE, echo=TRUE---------------------------------------------------
+## ----eval=FALSE, echo=TRUE----------------------------------------------------
 #  
 #  unstandardizedOnly <- sapply(allModelParameters, "[", "unstandardized")
 #  
 
-## ---- eval=FALSE, echo=TRUE---------------------------------------------------
+## ----eval=FALSE, echo=TRUE----------------------------------------------------
 #  
 #  oldNames <- names(allModelParameters)
 #  unstandardizedOnly <- sapply(allModelParameters, "[", "unstandardized")
 #  names(unstandardizedOnly) <- oldNames
 #  
 
-## ---- eval=FALSE, echo=TRUE---------------------------------------------------
+## ----eval=FALSE, echo=TRUE----------------------------------------------------
 #  
 #  #add the filename as a field in the data.frame (so it's uniquely identified when combined)
 #  lapply(names(unstandardizedOnly), function(element) {
@@ -229,7 +229,7 @@ knitr::include_graphics("runModels_Interactive-Screenshot.png")
 #  combinedParameters <- do.call("rbind", unstandardizedOnly)
 #  
 
-## ---- eval=FALSE, echo=TRUE---------------------------------------------------
+## ----eval=FALSE, echo=TRUE----------------------------------------------------
 #  
 #    library(MplusAutomation)
 #    library(ggplot2)
@@ -252,12 +252,12 @@ knitr::include_graphics("runModels_Interactive-Screenshot.png")
 #  	print(fmmMeanPlot)
 #  
 
-## ---- echo = FALSE, out.width = "80%", fig.pos="h", fig.cap = "Figure. Example of graphing finite mixutre model results from Mplus using ggplot2."----
+## ----echo = FALSE, out.width = "80%", fig.pos="h", fig.cap = "Figure. Example of graphing finite mixutre model results from Mplus using ggplot2."----
 
 knitr::include_graphics("mplusAutomationFMMPlot.png")
 
 
-## ---- eval=FALSE, echo=TRUE---------------------------------------------------
+## ----eval=FALSE, echo=TRUE----------------------------------------------------
 #  
 #  parallelModels <- readModels("10_14_Harsh_SelfCon_Impul")
 #  
